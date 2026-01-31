@@ -68,6 +68,7 @@ import {
   SortableTerminalTab,
   NewSessionView,
 } from "@/components/session"
+import { InvestigationFlow } from "@/components/investigation-flow"
 import { navMark, navParams } from "@/utils/perf"
 import { same } from "@/utils/same"
 
@@ -255,6 +256,24 @@ export default function Page() {
     pendingMessage: undefined as string | undefined,
     scrollGesture: 0,
     autoCreated: false,
+  })
+
+  const [isInvestigation, setIsInvestigation] = createSignal(false)
+
+  createEffect(() => {
+    const session = info()
+    if (!session) return
+    sdk.client.file
+      .read({ path: "metadata.yaml", directory: session.directory })
+      .then(() => setIsInvestigation(true))
+      .catch(() => setIsInvestigation(false))
+  })
+
+  createEffect(() => {
+    // if (isInvestigation()) {
+    //   layout.fileTree.setTab("investigation")
+    //   if (!isDesktop()) setStore("mobileTab", "investigation")
+    // }
   })
 
   createEffect(
@@ -1123,7 +1142,7 @@ export default function Page() {
   const setActiveDiff = (value: string | undefined) => setTree("activeDiff", value)
 
   const showAllFiles = () => {
-    if (fileTreeTab() !== "changes") return
+    if (fileTreeTab() === "all") return
     setFileTreeTab("all")
   }
 
@@ -1172,7 +1191,7 @@ export default function Page() {
       () => tabs().active(),
       (active) => {
         if (!active) return
-        if (fileTreeTab() !== "changes") return
+        if (fileTreeTab() === "all") return
         if (!file.pathFromTab(active)) return
         showAllFiles()
       },
@@ -1181,7 +1200,7 @@ export default function Page() {
   )
 
   const setFileTreeTabValue = (value: string) => {
-    if (value !== "changes" && value !== "all") return
+    if (value !== "changes" && value !== "all" && value !== "investigation") return
     setFileTreeTab(value)
   }
 
@@ -1292,7 +1311,9 @@ export default function Page() {
     const id = params.id
     if (!id) return
 
-    const wants = isDesktop() ? layout.fileTree.opened() && fileTreeTab() === "changes" : store.mobileTab === "changes"
+    const wants = isDesktop()
+      ? layout.fileTree.opened() && (fileTreeTab() === "changes" || fileTreeTab() === "investigation")
+      : store.mobileTab === "changes"
     if (!wants) return
     if (sync.data.session_diff[id] !== undefined) return
     if (sync.status === "loading") return
@@ -1732,9 +1753,19 @@ export default function Page() {
         <Show when={!isDesktop() && params.id}>
           <Tabs class="h-auto">
             <Tabs.List>
+              <Show when={isInvestigation()}>
+                <Tabs.Trigger
+                  value="investigation"
+                  class="flex-1"
+                  classes={{ button: "w-full" }}
+                  onClick={() => setStore("mobileTab", "investigation")}
+                >
+                  {language.t("session.tab.investigation")}
+                </Tabs.Trigger>
+              </Show>
               <Tabs.Trigger
                 value="session"
-                class="w-1/2"
+                class="flex-1"
                 classes={{ button: "w-full" }}
                 onClick={() => setStore("mobileTab", "session")}
               >
@@ -1742,7 +1773,7 @@ export default function Page() {
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="changes"
-                class="w-1/2 !border-r-0"
+                class="flex-1 !border-r-0"
                 classes={{ button: "w-full" }}
                 onClick={() => setStore("mobileTab", "changes")}
               >
@@ -1778,6 +1809,9 @@ export default function Page() {
                     fallback={
                       <div class="relative h-full overflow-hidden">
                         <Switch>
+                          <Match when={store.mobileTab === "investigation"}>
+                            <InvestigationFlow />
+                          </Match>
                           <Match when={hasReview()}>
                             <Show
                               when={diffsReady()}
@@ -2170,6 +2204,10 @@ export default function Page() {
             class="relative flex-1 min-w-0 h-full border-l border-border-weak-base flex"
           >
             <div class="flex-1 min-w-0 h-full">
+              <Show when={fileTreeTab() === "investigation"}>
+                <InvestigationFlow />
+              </Show>
+
               <Show
                 when={fileTreeTab() === "changes"}
                 fallback={
@@ -2841,6 +2879,11 @@ export default function Page() {
                     data-scope="filetree"
                   >
                     <Tabs.List>
+                      <Show when={isInvestigation()}>
+                        <Tabs.Trigger value="investigation" class="flex-1" classes={{ button: "w-full" }}>
+                          {language.t("session.tab.investigation")}
+                        </Tabs.Trigger>
+                      </Show>
                       <Tabs.Trigger value="changes" class="flex-1" classes={{ button: "w-full" }}>
                         {reviewCount()}{" "}
                         {language.t(reviewCount() === 1 ? "session.review.change.one" : "session.review.change.other")}
@@ -2849,6 +2892,11 @@ export default function Page() {
                         {language.t("session.files.all")}
                       </Tabs.Trigger>
                     </Tabs.List>
+                    <Tabs.Content value="investigation" class="bg-background-base px-3 py-0">
+                      <div class="mt-8 text-center text-12-regular text-text-weak">
+                        {language.t("session.tab.investigation")}
+                      </div>
+                    </Tabs.Content>
                     <Tabs.Content value="changes" class="bg-background-base px-3 py-0">
                       <Switch>
                         <Match when={hasReview()}>

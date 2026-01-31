@@ -1,4 +1,4 @@
-import { createEffect, createMemo, Show, untrack } from "solid-js"
+import { createEffect, createMemo, Show, untrack, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import { useLocation, useNavigate } from "@solidjs/router"
 import { IconButton } from "@opencode-ai/ui/icon-button"
@@ -6,11 +6,32 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { Button } from "@opencode-ai/ui/button"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { useTheme } from "@opencode-ai/ui/theme"
+import { DropdownMenu } from "@opencode-ai/ui/dropdown-menu"
+import { Avatar, getAvatarColors } from "@opencode-ai/ui/avatar"
 
 import { useLayout } from "@/context/layout"
 import { usePlatform } from "@/context/platform"
 import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
+
+const AlaudaLogo = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+    <title>alauda_Blue</title>
+    <g id="de0a135b-885c-4036-939d-50f62fab32b6" data-name="Brand Logo">
+      <path
+        d="M31,16V31H24.41V15.93A8.34,8.34,0,0,0,8.13,13.34L5.65,14.56l2.08,1.73C8,20.39,9.41,27.26,21.44,31H15.92A15,15,0,1,1,31,16Z"
+        fill="#3baee4"
+      />
+      <path d="M14.23,16.63a1.74,1.74,0,1,1-1.73-1.74A1.72,1.72,0,0,1,14.23,16.63Z" fill="#3baee4" />
+    </g>
+  </svg>
+  // <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" class="text-[#3baee4]">
+  //   <path
+  //     d="M19.3333 13.3333C19.3333 16.647 16.647 19.3333 13.3333 19.3333H7.33333C4.38781 19.3333 2 16.9455 2 14C2 11.0545 4.38781 8.66667 7.33333 8.66667C7.36294 8.66667 7.39239 8.66708 7.42168 8.66788C7.94273 4.90802 11.1648 2 15 2C19.4183 2 23 5.58172 23 10C23 10.4552 22.9619 10.9002 22.8887 11.3347C22.9599 11.3338 23.0314 11.3333 23.1032 11.3333C24.1509 11.3333 25 12.1824 25 13.2302C25 14.2779 24.1509 15.127 23.1032 15.127H19.3333V13.3333Z"
+  //     fill="currentColor"
+  //   />
+  // </svg>
+)
 
 export function Titlebar() {
   const layout = useLayout()
@@ -20,6 +41,8 @@ export function Titlebar() {
   const theme = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+
+  const [appTitle] = createSignal("Alauda")
 
   const mac = createMemo(() => platform.platform === "desktop" && platform.os === "macos")
   const windows = createMemo(() => platform.platform === "desktop" && platform.os === "windows")
@@ -133,17 +156,38 @@ export function Titlebar() {
 
   return (
     <header
-      class="h-10 shrink-0 bg-background-base relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center"
+      class="h-14 shrink-0 bg-background-strong border-b border-border-base relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center"
       data-tauri-drag-region
     >
       <div
         classList={{
-          "flex items-center min-w-0": true,
+          "flex items-center min-w-0 h-full": true,
           "pl-2": !mac(),
         }}
         onMouseDown={drag}
         data-tauri-drag-region
       >
+        <div id="opencode-titlebar-left" class="flex items-center gap-4 min-w-0 px-2 h-full" data-tauri-drag-region>
+          <div class="flex items-center gap-3" data-tauri-drag-region>
+            <AlaudaLogo />
+            <span class="font-extrabold text-text-strong text-xl select-none tracking-tight">
+              Alauda Container Platform
+            </span>
+          </div>
+          <div class="hidden xl:flex items-center gap-3 ml-4 border-l border-border-base pl-4 h-6">
+            {/*<div class="flex items-center gap-2 text-13-medium text-text-strong cursor-pointer hover:text-text-interactive-base transition-colors">
+              <Icon name="layout-grid" size="small" class="text-icon-weak" />
+            </div>*/}
+            {/*<div class="flex items-center gap-2 text-13-medium text-text-strong cursor-pointer hover:text-text-interactive-base transition-colors">
+              <Icon name="box" size="small" class="text-text-interactive-base" />
+              <span>Project: devops</span>
+            </div>
+            <div class="flex items-center gap-2 text-13-medium text-text-strong cursor-pointer hover:text-text-interactive-base transition-colors">
+              <span class="text-text-weak">Namespace:</span>
+              <span>devops (Cluster: business-...)</span>
+            </div>*/}
+          </div>
+        </div>
         <Show when={mac()}>
           <div class="w-[72px] h-full shrink-0" data-tauri-drag-region />
           <div class="xl:hidden w-10 shrink-0 flex items-center justify-center">
@@ -167,16 +211,16 @@ export function Titlebar() {
             />
           </div>
         </Show>
-        <div class="flex items-center gap-3 shrink-0">
+        <div class="flex items-center gap-4 shrink-0">
           <TooltipKeybind
-            class={web() ? "hidden xl:flex shrink-0 ml-14" : "hidden xl:flex shrink-0 ml-2"}
+            class={web() ? "hidden xl:flex shrink-0 ml-4" : "hidden xl:flex shrink-0 ml-2"}
             placement="bottom"
             title={language.t("command.sidebar.toggle")}
             keybind={command.keybind("sidebar.toggle")}
           >
             <Button
               variant="ghost"
-              class="group/sidebar-toggle size-6 p-0"
+              class="group/sidebar-toggle group-hover:to-icon-active size-6 p-0"
               onClick={layout.sidebar.toggle}
               aria-label={language.t("command.sidebar.toggle")}
               aria-expanded={layout.sidebar.opened()}
@@ -219,7 +263,6 @@ export function Titlebar() {
             </Tooltip>
           </div>
         </div>
-        <div id="opencode-titlebar-left" class="flex items-center gap-3 min-w-0 px-2" data-tauri-drag-region />
       </div>
 
       <div
@@ -237,7 +280,57 @@ export function Titlebar() {
         onMouseDown={drag}
         data-tauri-drag-region
       >
-        <div id="opencode-titlebar-right" class="flex items-center gap-3 shrink-0 justify-end" data-tauri-drag-region />
+        <div
+          id="opencode-titlebar-right"
+          class="flex items-center gap-4 shrink-0 justify-end h-full pr-4"
+          data-tauri-drag-region
+        >
+          {/*<div class="hidden md:flex items-center gap-2 bg-surface-critical-weak px-3 py-1 rounded-full border border-border-critical-base">
+             <Icon name="alert-triangle" size="small" class="text-icon-critical-base" />
+             <span class="text-12-medium text-text-critical-strong">Out of Service</span>
+          </div>*/}
+          {/*<IconButton
+            icon="help-circle"
+            variant="ghost"
+            class="text-icon-weak hover:text-text-interactive-base"
+            aria-label="Help"
+          />*/}
+          <div class="h-6 w-px bg-border-base mx-1" />
+          <DropdownMenu>
+            <DropdownMenu.Trigger class="flex items-center gap-2 hover:opacity-80 transition-opacity outline-none group">
+              {/*<Avatar
+                fallback="AU"
+                colors={getAvatarColors("Admin User")}
+                class="size-8 text-xs font-medium ring-2 ring-white"
+              />*/}
+              <span class="text-13-medium text-text-strong group-hover:text-text-interactive-base hidden lg:block">
+                daniel@alauda.io
+              </span>
+              <Icon
+                name="chevron-down"
+                size="small"
+                class="text-icon-weak group-hover:text-text-interactive-base hidden lg:block"
+              />
+            </DropdownMenu.Trigger>
+            <DropdownMenu.Portal>
+              <DropdownMenu.Content class="min-w-[180px]">
+                <DropdownMenu.Item onSelect={() => console.log("Profile")}>
+                  <Icon name="user" class="mr-2 size-4" />
+                  <span>Profile</span>
+                </DropdownMenu.Item>
+                <DropdownMenu.Item onSelect={() => console.log("Settings")}>
+                  <Icon name="settings" class="mr-2 size-4" />
+                  <span>Settings</span>
+                </DropdownMenu.Item>
+                <DropdownMenu.Separator />
+                <DropdownMenu.Item onSelect={() => console.log("Logout")} class="text-error">
+                  <Icon name="log-out" class="mr-2 size-4" />
+                  <span>Logout</span>
+                </DropdownMenu.Item>
+              </DropdownMenu.Content>
+            </DropdownMenu.Portal>
+          </DropdownMenu>
+        </div>
         <Show when={windows()}>
           <div class="w-6 shrink-0" />
           <div data-tauri-decorum-tb class="flex flex-row" />

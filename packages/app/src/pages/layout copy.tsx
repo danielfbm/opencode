@@ -70,7 +70,6 @@ import { ConstrainDragXAxis } from "@/utils/solid-dnd"
 import { navStart } from "@/utils/perf"
 import { DialogSelectDirectory } from "@/components/dialog-select-directory"
 import { DialogEditProject } from "@/components/dialog-edit-project"
-import { DialogNewInvestigation } from "@/components/dialog-new-investigation"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
@@ -1765,30 +1764,10 @@ export default function Layout(props: ParentProps) {
       return text?.text
     }
 
-    const [investigation, setInvestigation] = createSignal<{ status: string; description: string } | undefined>()
-
-    createEffect(() => {
-      if (investigation()) return
-      globalSDK.client.file.read({ path: "metadata.yaml", directory: props.session.directory })
-          .then(res => {
-                if (!res.data?.content) return
-                const content = res.data.content
-                const statusMatch = content.match(/status:\s*"([^"]+)"/)
-                const descMatch = content.match(/symptom_description:\s*"([^"]+)"/)
-                if (statusMatch || descMatch) {
-                    setInvestigation({
-                        status: statusMatch?.[1] ?? "",
-                        description: descMatch?.[1] ?? ""
-                    })
-                }
-          })
-          .catch(() => {})
-    })
-
     const item = (
       <A
         href={`${props.slug}/session/${props.session.id}`}
-        class={`flex flex-col gap-1 min-w-0 text-left w-full focus:outline-none transition-[padding] ${menu.open ? "pr-7" : ""} group-hover/session:pr-7 group-focus-within/session:pr-7 group-active/session:pr-7 ${props.dense ? "py-0.5" : "py-2"}`}
+        class={`flex items-center justify-between gap-3 min-w-0 text-left w-full focus:outline-none transition-[padding] ${menu.open ? "pr-7" : ""} group-hover/session:pr-7 group-focus-within/session:pr-7 group-active/session:pr-7 ${props.dense ? "py-0.5" : "py-1"}`}
         onPointerEnter={scheduleHoverPrefetch}
         onPointerLeave={cancelHoverPrefetch}
         onMouseEnter={scheduleHoverPrefetch}
@@ -1836,12 +1815,6 @@ export default function Layout(props: ParentProps) {
             )}
           </Show>
         </div>
-        <Show when={investigation()}>
-           <div class="flex flex-col gap-0.5 pl-7 pr-2 w-full min-w-0">
-              <span class="text-12-medium text-text-strong capitalize">{investigation()?.status}</span>
-              <span class="text-12-regular text-text-weak truncate">{investigation()?.description}</span>
-           </div>
-        </Show>
       </A>
     )
 
@@ -1947,17 +1920,17 @@ export default function Layout(props: ParentProps) {
   }
 
   const NewSessionItem = (props: { slug: string; mobile?: boolean; dense?: boolean }): JSX.Element => {
-    const label = "New Investigation"
+    const label = language.t("command.session.new")
     const tooltip = () => props.mobile || !sidebarExpanded()
     const item = (
-      <div
-        class={`flex items-center justify-between gap-3 min-w-0 text-left w-full focus:outline-none ${props.dense ? "py-0.5" : "py-1"} cursor-pointer`}
+      <A
+        href={`${props.slug}/session`}
+        end
+        class={`flex items-center justify-between gap-3 min-w-0 text-left w-full focus:outline-none ${props.dense ? "py-0.5" : "py-1"}`}
         onClick={() => {
           setState("hoverSession", undefined)
-          if (!layout.sidebar.opened()) {
-            queueMicrotask(() => setState("hoverProject", undefined))
-          }
-          dialog.show(() => <DialogNewInvestigation />)
+          if (layout.sidebar.opened()) return
+          queueMicrotask(() => setState("hoverProject", undefined))
         }}
       >
         <div class="flex items-center gap-1 w-full">
@@ -1968,7 +1941,7 @@ export default function Layout(props: ParentProps) {
             {label}
           </span>
         </div>
-      </div>
+      </A>
     )
 
     return (
@@ -2037,22 +2010,17 @@ export default function Layout(props: ParentProps) {
   const SortableWorkspace = (props: { directory: string; project: LocalProject; mobile?: boolean }): JSX.Element => {
     const sortable = createSortable(props.directory)
     const [workspaceStore, setWorkspaceStore] = globalSync.child(props.directory, { bootstrap: false })
-    const [searchQuery, setSearchQuery] = createSignal("")
     const [menu, setMenu] = createStore({
       open: false,
       pendingRename: false,
     })
     const slug = createMemo(() => base64Encode(props.directory))
-    const sessions = createMemo(() => {
-      const allSessions = workspaceStore.session
+    const sessions = createMemo(() =>
+      workspaceStore.session
         .filter((session) => session.directory === workspaceStore.path.directory)
         .filter((session) => !session.parentID && !session.time?.archived)
-        .toSorted(sortSessions(Date.now()))
-
-      if (!searchQuery()) return allSessions
-
-      return allSessions.filter((s) => s.title.toLowerCase().includes(searchQuery().toLowerCase()))
-    })
+        .toSorted(sortSessions(Date.now())),
+    )
     const children = createMemo(() => {
       const map = new Map<string, string[]>()
       for (const session of workspaceStore.session) {
@@ -2235,18 +2203,6 @@ export default function Layout(props: ParentProps) {
           </div>
 
           <Collapsible.Content>
-            <div class="px-3 pb-2">
-              <div class="relative flex items-center">
-                <Icon name="search" size="small" class="absolute left-2 text-icon-weak" />
-                <input
-                  type="text"
-                  placeholder="Search investigations..."
-                  class="w-full bg-background-base border border-border-weak-base rounded-md py-1 pl-8 pr-2 text-12-regular focus:outline-none focus:border-border-active transition-colors"
-                  value={searchQuery()}
-                  onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                />
-              </div>
-            </div>
             <nav class="flex flex-col gap-1 px-2">
               <NewSessionItem slug={slug()} mobile={props.mobile} />
               <Show when={loading()}>
@@ -2467,18 +2423,13 @@ export default function Layout(props: ParentProps) {
 
   const LocalWorkspace = (props: { project: LocalProject; mobile?: boolean }): JSX.Element => {
     const [workspaceStore, setWorkspaceStore] = globalSync.child(props.project.worktree)
-    const [searchQuery, setSearchQuery] = createSignal("")
     const slug = createMemo(() => base64Encode(props.project.worktree))
-    const sessions = createMemo(() => {
-      const allSessions = workspaceStore.session
+    const sessions = createMemo(() =>
+      workspaceStore.session
         .filter((session) => session.directory === workspaceStore.path.directory)
         .filter((session) => !session.parentID && !session.time?.archived)
-        .toSorted(sortSessions(Date.now()))
-
-      if (!searchQuery()) return allSessions
-
-      return allSessions.filter((s) => s.title.toLowerCase().includes(searchQuery().toLowerCase()))
-    })
+        .toSorted(sortSessions(Date.now())),
+    )
     const children = createMemo(() => {
       const map = new Map<string, string[]>()
       for (const session of workspaceStore.session) {
@@ -2505,21 +2456,9 @@ export default function Layout(props: ParentProps) {
         ref={(el) => {
           if (!props.mobile) scrollContainerRef = el
         }}
-        class="size-full flex flex-col py-2 overflow-hidden"
+        class="size-full flex flex-col py-2 overflow-y-auto no-scrollbar [overflow-anchor:none]"
       >
-        <div class="px-3 pb-2">
-          <div class="relative flex items-center">
-            <Icon name="search" size="small" class="absolute left-2 text-icon-weak" />
-            <input
-              type="text"
-              placeholder="Search investigations..."
-              class="w-full bg-background-base border border-border-weak-base rounded-md py-1 pl-8 pr-2 text-12-regular focus:outline-none focus:border-border-active transition-colors"
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-            />
-          </div>
-        </div>
-        <nav class="flex-1 flex flex-col gap-1 px-2 overflow-y-auto no-scrollbar [overflow-anchor:none]">
+        <nav class="flex flex-col gap-1 px-2">
           <Show when={loading()}>
             <SessionSkeleton />
           </Show>
@@ -2697,7 +2636,7 @@ export default function Layout(props: ParentProps) {
                   <>
                     <div class="py-4 px-3">
                       <TooltipKeybind
-                        title="New Investigation"
+                        title={language.t("command.session.new")}
                         keybind={command.keybind("session.new")}
                         placement="top"
                       >
@@ -2710,10 +2649,11 @@ export default function Layout(props: ParentProps) {
                               setState("hoverSession", undefined)
                               setState("hoverProject", undefined)
                             }
-                            dialog.show(() => <DialogNewInvestigation />)
+                            navigate(`/${base64Encode(p.worktree)}/session`)
+                            layout.mobileSidebar.hide()
                           }}
                         >
-                          New Investigation
+                          {language.t("command.session.new")}
                         </Button>
                       </TooltipKeybind>
                     </div>
@@ -2811,62 +2751,104 @@ export default function Layout(props: ParentProps) {
 
     return (
       <div class="flex h-full w-full overflow-hidden bg-background-base">
-        {/*<div class="w-64 shrink-0 bg-white border-r border-border-base flex flex-col items-start overflow-hidden pt-4">*/}
-        <div class="w-16 shrink-0 bg-background-base flex flex-col items-center overflow-hidden">
+        <div class="w-64 shrink-0 bg-white border-r border-border-base flex flex-col items-start overflow-hidden pt-4">
           <div class="flex-1 min-h-0 w-full px-2">
-            <DragDropProvider
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-              onDragOver={handleDragOver}
-              collisionDetector={closestCenter}
-            >
-              <DragDropSensors />
-              <ConstrainDragXAxis />
-              <div class="h-full w-full flex flex-col items-center gap-3 px-3 py-2 overflow-y-auto no-scrollbar">
-                <SortableProvider ids={layout.projects.list().map((p) => p.worktree)}>
-                  <For each={layout.projects.list()}>
-                    {(project) => <SortableProject project={project} mobile={sidebarProps.mobile} />}
-                  </For>
-                </SortableProvider>
-                <Tooltip
-                  placement={sidebarProps.mobile ? "bottom" : "right"}
-                  value={
-                    <div class="flex items-center gap-2">
-                      <span>{language.t("command.project.open")}</span>
-                      <Show when={!sidebarProps.mobile}>
-                        <span class="text-icon-base text-12-medium">{command.keybind("project.open")}</span>
-                      </Show>
-                    </div>
-                  }
-                >
-                  <IconButton
-                    icon="plus"
-                    variant="ghost"
-                    size="large"
-                    onClick={chooseProject}
-                    aria-label={language.t("command.project.open")}
-                  />
-                </Tooltip>
-              </div>
-              <DragOverlay>
-                <ProjectDragOverlay />
-              </DragOverlay>
-            </DragDropProvider>
+            {/*<div class="flex flex-col gap-1 w-full">
+               <div class="flex items-center gap-3 px-4 py-2 bg-surface-interactive-weak text-text-interactive-base rounded-md cursor-pointer font-medium text-14-medium">
+                  <Icon name="git-branch" class="size-5" />
+                  <span>Pipelines</span>
+               </div>
+               <div class="flex items-center gap-3 px-4 py-2 text-text-weak hover:bg-surface-base-hover hover:text-text-strong rounded-md cursor-pointer transition-colors text-14-medium">
+                  <Icon name="play-circle" class="size-5" />
+                  <span>PipelineRuns</span>
+               </div>
+               <div class="flex items-center gap-3 px-4 py-2 text-text-weak hover:bg-surface-base-hover hover:text-text-strong rounded-md cursor-pointer transition-colors text-14-medium">
+                  <Icon name="list" class="size-5" />
+                  <span>Tasks</span>
+               </div>
+               <div class="flex items-center gap-3 px-4 py-2 text-text-weak hover:bg-surface-base-hover hover:text-text-strong rounded-md cursor-pointer transition-colors text-14-medium">
+                  <Icon name="list-checks" class="size-5" />
+                  <span>TaskRuns</span>
+               </div>
+                <div class="flex items-center gap-3 px-4 py-2 text-text-weak hover:bg-surface-base-hover hover:text-text-strong rounded-md cursor-pointer transition-colors text-14-medium">
+                  <Icon name="zap" class="size-5" />
+                  <span>Triggers</span>
+               </div>
+                <div class="flex items-center gap-3 px-4 py-2 text-text-weak hover:bg-surface-base-hover hover:text-text-strong rounded-md cursor-pointer transition-colors text-14-medium">
+                  <Icon name="file-code" class="size-5" />
+                  <span>TriggerTemplates</span>
+               </div>
+            </div>*/}
+
+            <div class="mt-8 pt-4 border-t border-border-weak-base hidden">
+              <DragDropProvider
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                onDragOver={handleDragOver}
+                collisionDetector={closestCenter}
+              >
+                <DragDropSensors />
+                <ConstrainDragXAxis />
+                <div class="h-full w-full flex flex-col items-center gap-3 px-3 py-2 overflow-y-auto no-scrollbar">
+                  <SortableProvider ids={layout.projects.list().map((p) => p.worktree)}>
+                    <For each={layout.projects.list()}>
+                      {(project) => <SortableProject project={project} mobile={sidebarProps.mobile} />}
+                    </For>
+                  </SortableProvider>
+                  <Tooltip
+                    placement={sidebarProps.mobile ? "bottom" : "right"}
+                    value={
+                      <div class="flex items-center gap-2">
+                        <span>{language.t("command.project.open")}</span>
+                        <Show when={!sidebarProps.mobile}>
+                          <span class="text-icon-base text-12-medium">{command.keybind("project.open")}</span>
+                        </Show>
+                      </div>
+                    }
+                  >
+                    <IconButton
+                      icon="plus"
+                      variant="ghost"
+                      size="large"
+                      onClick={chooseProject}
+                      aria-label={language.t("command.project.open")}
+                    />
+                  </Tooltip>
+                </div>
+                <DragOverlay>
+                  <ProjectDragOverlay />
+                </DragOverlay>
+              </DragDropProvider>
+            </div>
           </div>
-          <div class="shrink-0 w-full pt-3 pb-3 flex flex-col items-center gap-2">
+          <div class="shrink-0 w-full pt-3 pb-3 flex flex-col items-center gap-2 border-t border-border-weak-base bg-white">
             <TooltipKeybind
-              placement={sidebarProps.mobile ? "bottom" : "right"}
+              placement="right"
               title={language.t("sidebar.settings")}
               keybind={command.keybind("settings.open")}
             >
+              <div class="w-full px-2">
+                <Button
+                  variant="ghost"
+                  size="large"
+                  class="w-full justify-start text-text-weak hover:text-text-strong gap-3 px-4"
+                  onClick={openSettings}
+                  aria-label={language.t("sidebar.settings")}
+                >
+                  <Icon name="settings-gear" size="small" />
+                  <span class="text-14-medium">Settings</span>
+                </Button>
+              </div>
+            </TooltipKeybind>
+            <Tooltip placement={sidebarProps.mobile ? "bottom" : "right"} value={language.t("sidebar.help")}>
               <IconButton
-                icon="settings-gear"
+                icon="help"
                 variant="ghost"
                 size="large"
-                onClick={openSettings}
-                aria-label={language.t("sidebar.settings")}
+                onClick={() => platform.openLink("https://opencode.ai/desktop-feedback")}
+                aria-label={language.t("sidebar.help")}
               />
-            </TooltipKeybind>
+            </Tooltip>
           </div>
         </div>
 
@@ -2888,7 +2870,7 @@ export default function Layout(props: ParentProps) {
             "hidden xl:block": true,
             "relative shrink-0": true,
           }}
-          style={{ width: layout.sidebar.opened() ? `${Math.max(layout.sidebar.width(), 320)}px` : "64px" }}
+          style={{ width: layout.sidebar.opened() ? `${Math.max(layout.sidebar.width(), 244)}px` : "64px" }}
           ref={(el) => {
             setState("nav", el)
           }}
@@ -2922,9 +2904,9 @@ export default function Layout(props: ParentProps) {
             <ResizeHandle
               direction="horizontal"
               size={layout.sidebar.width()}
-              min={320}
+              min={244}
               max={window.innerWidth * 0.3 + 64}
-              collapseThreshold={320}
+              collapseThreshold={244}
               onResize={layout.sidebar.resize}
               onCollapse={layout.sidebar.close}
             />
