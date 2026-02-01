@@ -1,59 +1,89 @@
-import { createSignal } from "solid-js"
+import { createSignal, createMemo, Show, For } from "solid-js"
+import { useNavigate } from "@solidjs/router"
+import { useInvestigations } from "../../context/investigations"
+import { InvestigationCard } from "../../components/sre/investigation-card"
+import { InvestigationTable } from "../../components/sre/investigation-table"
+import { Pagination } from "../../components/sre/pagination"
+import { DialogConfirmDelete } from "../../components/sre/dialog-confirm-delete"
+import { DialogStartInvestigation } from "../../components/sre/dialog-start-investigation"
+import { CardSkeletonGrid, TableSkeleton } from "../../components/sre/skeleton"
+import type { InvestigationStatus, Severity } from "./types"
 
 export default function InvestigationsList() {
-  const [searchQuery, setSearchQuery] = createSignal("")
+  const navigate = useNavigate()
+  const { 
+    filteredInvestigations, 
+    loading, 
+    filters, 
+    setFilters, 
+    deleteInvestigation,
+    createInvestigation,
+  } = useInvestigations()
+
   const [viewMode, setViewMode] = createSignal<"grid" | "list">("grid")
+  const [currentPage, setCurrentPage] = createSignal(1)
+  const [pageSize, setPageSize] = createSignal(10)
+  
+  const [deleteId, setDeleteId] = createSignal<string | null>(null)
+  const [showStartDialog, setShowStartDialog] = createSignal(false)
+  
+  const investigationToDelete = createMemo(() => {
+    const id = deleteId()
+    if (!id) return null
+    return filteredInvestigations().find(inv => inv.id === id)?.name || "Investigation"
+  })
+
+  const paginatedData = createMemo(() => {
+    const start = (currentPage() - 1) * pageSize()
+    return filteredInvestigations().slice(start, start + pageSize())
+  })
+
+  const totalPages = createMemo(() => 
+    Math.ceil(filteredInvestigations().length / pageSize())
+  )
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page)
+    document.querySelector(".sre-content")?.scrollTo(0, 0)
+  }
+
+  const handleDelete = (id: string) => {
+    setDeleteId(id)
+  }
+
+  const confirmDelete = async () => {
+    const id = deleteId()
+    if (id) {
+      await deleteInvestigation(id)
+      setDeleteId(null)
+      if (paginatedData().length === 0 && currentPage() > 1) {
+        setCurrentPage(currentPage() - 1)
+      }
+    }
+  }
 
   return (
-    <div style={{ height: "100%", display: "flex", "flex-direction": "column" }}>
-      {/* Header Row */}
-      <div style={{ 
-        display: "flex", 
-        "justify-content": "space-between", 
-        "align-items": "center",
-        "margin-bottom": "20px"
-      }}>
+    <div class="h-full flex flex-col">
+      <div class="flex justify-between items-center mb-5">
         <div>
-          <div style={{ 
-            "font-size": "12px", 
-            color: "var(--aui-color-n-4)", 
-            "margin-bottom": "4px" 
-          }}>
+          <div class="text-xs text-[var(--aui-color-n-4)] mb-1">
             Investigations
           </div>
-          <h1 style={{ 
-            "font-size": "20px", 
-            "font-weight": "600", 
-            color: "var(--aui-color-n-1)",
-            margin: 0
-          }}>
+          <h1 class="text-xl font-semibold text-[var(--aui-color-n-1)] m-0">
             Investigations
           </h1>
         </div>
-        <button class="sre-btn sre-btn-primary">
+        <button class="sre-btn sre-btn-primary" onClick={() => setShowStartDialog(true)}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="mr-2">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
           Start Investigation
         </button>
       </div>
 
-      {/* Control Row */}
-      <div style={{ 
-        display: "flex", 
-        "justify-content": "flex-end", 
-        "align-items": "center",
-        gap: "12px",
-        "margin-bottom": "20px"
-      }}>
-        {/* Search */}
-        <div style={{ 
-          display: "flex", 
-          "align-items": "center",
-          background: "var(--aui-color-surface)",
-          border: "1px solid var(--aui-color-border)",
-          "border-radius": "4px",
-          padding: "0 12px",
-          height: "32px",
-          width: "240px"
-        }}>
+      <div class="flex flex-wrap justify-end items-center gap-3 mb-5">
+        <div class="flex items-center bg-[var(--aui-color-surface)] border border-[var(--aui-color-border)] rounded px-3 h-8 w-[240px] focus-within:border-[var(--aui-color-primary)] transition-colors">
           <svg 
             width="16" 
             height="16" 
@@ -61,72 +91,70 @@ export default function InvestigationsList() {
             fill="none" 
             stroke="var(--aui-color-n-4)" 
             stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            style={{ "flex-shrink": 0 }}
+            class="shrink-0"
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             type="text"
-            placeholder="Enter a name..."
-            value={searchQuery()}
-            onInput={(e) => setSearchQuery(e.currentTarget.value)}
-            style={{
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              "margin-left": "8px",
-              "font-size": "13px",
-              color: "var(--aui-color-n-1)",
-              width: "100%"
+            placeholder="Search investigations..."
+            value={filters.search}
+            onInput={(e) => {
+              setFilters({ search: e.currentTarget.value })
+              setCurrentPage(1)
             }}
+            class="border-none outline-none bg-transparent ml-2 text-[13px] text-[var(--aui-color-n-1)] w-full placeholder:text-[var(--aui-color-n-4)]"
           />
         </div>
 
-        {/* Filter */}
-        <button 
-          class="sre-btn sre-btn-secondary"
-          style={{ padding: "0 12px", gap: "6px" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-          </svg>
-          Filter
-        </button>
+        <div class="relative group">
+          <select
+            value={filters.status}
+            onChange={(e) => {
+              setFilters({ status: e.currentTarget.value as InvestigationStatus | "all" })
+              setCurrentPage(1)
+            }}
+            class="sre-btn sre-btn-secondary appearance-none pr-8 pl-3"
+          >
+            <option value="all">All Status</option>
+            <option value="in_progress">In Progress</option>
+            <option value="concluded">Concluded</option>
+            <option value="inconclusive">Inconclusive</option>
+            <option value="canceled">Canceled</option>
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--aui-color-n-4)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+        </div>
 
-        {/* Sort */}
-        <button 
-          class="sre-btn sre-btn-secondary"
-          style={{ padding: "0 12px" }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="4" y1="6" x2="16" y2="6" />
-            <line x1="4" y1="12" x2="12" y2="12" />
-            <line x1="4" y1="18" x2="8" y2="18" />
-            <polyline points="15 15 18 18 21 15" />
-            <line x1="18" y1="18" x2="18" y2="9" />
-          </svg>
-        </button>
+        <div class="relative group">
+          <select
+            value={filters.sortBy}
+            onChange={(e) => setFilters({ sortBy: e.currentTarget.value as any })}
+            class="sre-btn sre-btn-secondary appearance-none pr-8 pl-3"
+          >
+            <option value="date_desc">Newest First</option>
+            <option value="date_asc">Oldest First</option>
+            <option value="name_asc">Name A-Z</option>
+          </select>
+          <div class="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--aui-color-n-4)]">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </div>
+        </div>
 
-        {/* View Toggle */}
-        <div style={{ 
-          display: "flex", 
-          border: "1px solid var(--aui-color-border)",
-          "border-radius": "4px",
-          overflow: "hidden"
-        }}>
+        <div class="flex border border-[var(--aui-color-border)] rounded overflow-hidden">
           <button 
             onClick={() => setViewMode("grid")}
-            style={{
-              padding: "6px 10px",
-              border: "none",
-              background: viewMode() === "grid" ? "var(--aui-color-n-8)" : "var(--aui-color-surface)",
-              cursor: "pointer",
-              display: "flex",
-              "align-items": "center"
-            }}
+            class={`p-1.5 flex items-center justify-center transition-colors ${
+              viewMode() === "grid" 
+                ? "bg-[var(--aui-color-n-8)] text-[var(--aui-color-n-1)]" 
+                : "bg-[var(--aui-color-surface)] text-[var(--aui-color-n-4)] hover:bg-[var(--aui-color-n-9)]"
+            }`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="3" y="3" width="7" height="7" />
@@ -137,15 +165,11 @@ export default function InvestigationsList() {
           </button>
           <button 
             onClick={() => setViewMode("list")}
-            style={{
-              padding: "6px 10px",
-              border: "none",
-              "border-left": "1px solid var(--aui-color-border)",
-              background: viewMode() === "list" ? "var(--aui-color-n-8)" : "var(--aui-color-surface)",
-              cursor: "pointer",
-              display: "flex",
-              "align-items": "center"
-            }}
+            class={`p-1.5 flex items-center justify-center border-l border-[var(--aui-color-border)] transition-colors ${
+              viewMode() === "list" 
+                ? "bg-[var(--aui-color-n-8)] text-[var(--aui-color-n-1)]" 
+                : "bg-[var(--aui-color-surface)] text-[var(--aui-color-n-4)] hover:bg-[var(--aui-color-n-9)]"
+            }`}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="8" y1="6" x2="21" y2="6" />
@@ -159,75 +183,88 @@ export default function InvestigationsList() {
         </div>
       </div>
 
-      {/* Empty State */}
-      <div style={{ 
-        flex: 1,
-        display: "flex",
-        "flex-direction": "column",
-        "align-items": "center",
-        "justify-content": "center",
-        background: "var(--aui-color-surface)",
-        "border-radius": "4px",
-        border: "1px solid var(--aui-color-border)",
-        padding: "60px 20px"
-      }}>
-        <div style={{ 
-          width: "80px", 
-          height: "80px", 
-          "border-radius": "50%",
-          background: "var(--aui-color-n-8)",
-          display: "flex",
-          "align-items": "center",
-          "justify-content": "center",
-          "margin-bottom": "24px"
-        }}>
-          <svg
-            width="40"
-            height="40"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--aui-color-n-5)"
-            stroke-width="1.5"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-        </div>
-        <h2 style={{ 
-          "font-size": "18px", 
-          "font-weight": "600", 
-          color: "var(--aui-color-n-1)",
-          margin: "0 0 8px 0"
-        }}>
-          No investigations yet
-        </h2>
-        <p style={{ 
-          "font-size": "14px", 
-          color: "var(--aui-color-n-4)", 
-          margin: "0 0 24px 0",
-          "text-align": "center",
-          "max-width": "360px"
-        }}>
-          Start your first investigation to begin analyzing incidents and identifying root causes
-        </p>
-        <button class="sre-btn sre-btn-primary">
-          Start Investigation
-        </button>
+      <div class="flex-1 min-h-0 relative">
+        <Show when={!loading()} fallback={
+          viewMode() === "grid" ? <CardSkeletonGrid /> : <TableSkeleton />
+        }>
+          <Show when={filteredInvestigations().length > 0} fallback={
+            <div class="h-full flex flex-col items-center justify-center bg-[var(--aui-color-surface)] rounded border border-[var(--aui-color-border)] p-12 text-center animate-in fade-in duration-300">
+              <div class="w-20 h-20 rounded-full bg-[var(--aui-color-n-8)] flex items-center justify-center mb-6">
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--aui-color-n-5)" stroke-width="1.5">
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+              </div>
+              <h2 class="text-lg font-semibold text-[var(--aui-color-n-1)] mb-2">No investigations found</h2>
+              <p class="text-[var(--aui-color-n-4)] mb-6 max-w-sm">
+                We couldn't find any investigations matching your filters. Try adjusting your search or filters.
+              </p>
+              <button 
+                class="sre-btn sre-btn-secondary"
+                onClick={() => {
+                  setFilters({ search: "", status: "all" })
+                }}
+              >
+                Clear Filters
+              </button>
+            </div>
+          }>
+            <div class="animate-in fade-in slide-in-from-bottom-2 duration-300">
+              <Show when={viewMode() === "grid"} fallback={
+                <InvestigationTable 
+                  investigations={paginatedData()} 
+                  onDelete={handleDelete}
+                />
+              }>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <For each={paginatedData()}>
+                    {(inv) => (
+                      <InvestigationCard 
+                        investigation={inv} 
+                        onDelete={handleDelete}
+                      />
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
+            
+            <Pagination
+              currentPage={currentPage()}
+              totalPages={totalPages()}
+              totalItems={filteredInvestigations().length}
+              pageSize={pageSize()}
+              onPageChange={handlePageChange}
+              onPageSizeChange={(size) => {
+                setPageSize(size)
+                setCurrentPage(1)
+              }}
+            />
+          </Show>
+        </Show>
       </div>
 
-      {/* Pagination placeholder */}
-      <div style={{ 
-        display: "flex", 
-        "justify-content": "flex-end", 
-        "align-items": "center",
-        "margin-top": "16px",
-        "font-size": "13px",
-        color: "var(--aui-color-n-4)"
-      }}>
-        <span>Total: 0</span>
-      </div>
+      <DialogConfirmDelete
+        isOpen={!!deleteId()}
+        investigationName={investigationToDelete() || ""}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+      />
+
+      <DialogStartInvestigation
+        isOpen={showStartDialog()}
+        onClose={() => setShowStartDialog(false)}
+        onSubmit={async (data) => {
+          const investigation = await createInvestigation({
+            description: data.description,
+            affectedService: data.affectedService || undefined,
+            namespace: data.namespace || undefined,
+            cluster: data.cluster || undefined,
+            severity: (data.severity as Severity) || undefined,
+          })
+          navigate(`/investigations/${investigation.id}`)
+        }}
+      />
     </div>
   )
 }

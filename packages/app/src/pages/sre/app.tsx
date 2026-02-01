@@ -10,11 +10,14 @@ import { NotificationProvider } from "../../context/notification"
 import { ModelsProvider } from "../../context/models"
 import { CommandProvider } from "../../context/command"
 import { HighlightsProvider } from "../../context/highlights"
+import { InvestigationsProvider } from "../../context/investigations"
 import { usePlatform } from "../../context/platform"
+import { SreErrorBoundary } from "../../components/sre/error-boundary"
 import SreLayout from "./layout"
 
 const InvestigationsList = lazy(() => import("./investigations-list"))
 const InvestigationDetails = lazy(() => import("./investigation-details"))
+const NotFound = lazy(() => import("./not-found"))
 
 const Loading = () => (
   <div class="flex h-full w-full items-center justify-center text-[rgb(var(--aui-color-n-4))]">
@@ -66,7 +69,11 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                         <ModelsProvider>
                           <CommandProvider>
                             <HighlightsProvider>
-                              <SreLayout>{props.children}</SreLayout>
+                              <InvestigationsProvider>
+                                <SreErrorBoundary>
+                                  <SreLayout>{props.children}</SreLayout>
+                                </SreErrorBoundary>
+                              </InvestigationsProvider>
                             </HighlightsProvider>
                           </CommandProvider>
                         </ModelsProvider>
@@ -90,6 +97,14 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                 component={() => (
                   <Suspense fallback={<Loading />}>
                     <InvestigationDetails />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="*"
+                component={() => (
+                  <Suspense fallback={<Loading />}>
+                    <NotFound />
                   </Suspense>
                 )}
               />
