@@ -6,7 +6,7 @@ export default function SreLayout(props: ParentProps) {
   return (
     <div class="sre-portal">
       <PortalHeader />
-      <div class="sre-main">
+      <div class="sre-body">
         <PortalSidebar />
         <main class="sre-content">
           {props.children}
