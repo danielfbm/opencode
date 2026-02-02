@@ -1,70 +1,124 @@
-import { createSignal, Show, For } from "solid-js"
-import { Icon } from "@opencode-ai/ui/icon"
-import { Button } from "@opencode-ai/ui/button"
+import { createMemo, createSignal, Show } from "solid-js"
+import { useInvestigationData } from "@/hooks/useInvestigationData"
+import { InvestigationFlowGraph } from "./investigation-flow/InvestigationFlowGraph"
+import { InvestigationSlider } from "./investigation-flow/InvestigationSlider"
+import { FlowLegend } from "./investigation-flow/FlowLegend"
+import type { FlowNode } from "./investigation-flow/layout"
+import { IconButton } from "@opencode-ai/ui/icon-button"
 
-type Phase = "incident-info" | "initial-investigation" | "hypothesis" | "conclusion"
+interface Props {
+  directory?: string
+  workspaceDirectory?: string
+  fileTreeOpen?: boolean
+  onHideFileTree?: () => void
+  onShowFileTree?: () => void
+}
 
-const PHASES: { id: Phase; label: string }[] = [
-  { id: "incident-info", label: "Incident Information" },
-  { id: "initial-investigation", label: "Initial Investigation" },
-  { id: "hypothesis", label: "Hypothesis Tree" },
-  { id: "conclusion", label: "Conclusion / Root Cause" },
-]
+export function InvestigationFlow(props: Props) {
+  const [selectedNode, setSelectedNode] = createSignal<FlowNode | null>(null)
+  const [collapsed, setCollapsed] = createSignal(false)
+  const hasDirectory = createMemo(() => !!props.directory)
 
-export function InvestigationFlow() {
-  const [activePhase, setActivePhase] = createSignal<Phase | null>(null)
+  const { data, loading, error } = useInvestigationData({
+    directory: () => props.directory,
+    workspaceDirectory: () => props.workspaceDirectory,
+    pollInterval: 5000
+  })
+  const loaded = createMemo(() => !!data())
+  const busy = createMemo(() => loading() && !loaded())
+  const fault = createMemo(() => !loading() && !loaded() && error())
+  const toggleGroup = () => setCollapsed(prev => !prev)
+  const onSelect = (node: FlowNode) => {
+    if (node.type === "hypothesis_group") {
+      toggleGroup()
+      setSelectedNode(null)
+      return
+    }
+    setSelectedNode(node)
+  }
 
   return (
-    <div class="flex h-full w-full bg-background-base overflow-hidden">
-        {/* Main Graph Area */}
-        <div class="flex-1 flex flex-col items-center justify-center gap-8 p-8 overflow-auto">
-            <h2 class="text-2xl font-bold text-text-strong mb-8">Investigation Flow</h2>
-            <div class="flex flex-col gap-4 w-full max-w-2xl">
-                <For each={PHASES}>
-                    {(phase, index) => (
-                         <div
-                            class="flex items-center gap-4 p-4 border rounded-lg cursor-pointer hover:bg-surface-raised-base transition-colors"
-                            classList={{
-                                "border-border-active bg-surface-base-active": activePhase() === phase.id,
-                                "border-border-base bg-surface-base": activePhase() !== phase.id
-                            }}
-                            onClick={() => setActivePhase(phase.id)}
-                         >
-                            <div class="size-8 rounded-full bg-surface-interactive-base text-text-invert-base flex items-center justify-center font-bold">
-                                {index() + 1}
-                            </div>
-                            <div class="flex-1">
-                                <div class="text-16-medium text-text-strong">{phase.label}</div>
-                                <div class="text-12-regular text-text-weak">Click to view details</div>
-                            </div>
-                            <Icon name="chevron-right" class="text-icon-weak" />
-                         </div>
-                    )}
-                </For>
-            </div>
-        </div>
+    <div class="relative flex h-full w-full bg-background-stronger overflow-hidden">
+      <Show when={!hasDirectory()}>
+        <EmptyState />
+      </Show>
 
-        {/* Right Slider / Details Panel */}
-        <Show when={activePhase()}>
-            <div class="w-96 border-l border-border-base bg-background-stronger flex flex-col h-full shadow-lg transition-transform">
-                <div class="flex items-center justify-between p-4 border-b border-border-base">
-                    <h3 class="text-16-medium text-text-strong">{PHASES.find(p => p.id === activePhase())?.label}</h3>
-                    <Button variant="ghost" size="small" icon="close" onClick={() => setActivePhase(null)} />
-                </div>
-                <div class="p-4 flex-1 overflow-auto">
-                    <div class="text-14-regular text-text-base">
-                        <p>Details for {activePhase()}...</p>
-                        {/* Placeholder content */}
-                        <div class="mt-4 p-3 bg-surface-base rounded border border-border-base">
-                             <div class="font-mono text-12-regular">
-                                 Status: In Progress<br/>
-                                 Updated: Just now
-                             </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+      <Show when={hasDirectory()}>
+        <Show when={busy()}>
+          <LoadingState />
         </Show>
+
+        <Show when={fault()}>
+          <ErrorState error={error()!} />
+        </Show>
+
+        <Show when={loaded()}>
+          <div class="flex-1 relative">
+            <FlowLegend />
+            <Show when={props.onShowFileTree && props.fileTreeOpen === false}>
+              <IconButton
+                icon="layout-right"
+                variant="ghost"
+                class="absolute top-3 left-3 z-10 bg-white/90 border border-border-base shadow-sm"
+                onClick={props.onShowFileTree}
+                aria-label="Show file tree panel"
+              />
+            </Show>
+            <Show when={props.onHideFileTree && props.fileTreeOpen === true}>
+              <IconButton
+                icon="layout-right-full"
+                variant="ghost"
+                class="absolute top-3 left-3 z-10 bg-white/90 border border-border-base shadow-sm"
+                onClick={props.onHideFileTree}
+                aria-label="Hide file tree panel"
+              />
+            </Show>
+
+            <InvestigationFlowGraph
+              data={data()!}
+              collapsed={collapsed()}
+              onNodeClick={onSelect}
+            />
+          </div>
+
+          <InvestigationSlider
+            node={selectedNode()}
+            data={data()!}
+            onClose={() => setSelectedNode(null)}
+            collapsed={collapsed()}
+            onToggleGroup={toggleGroup}
+          />
+        </Show>
+      </Show>
+    </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <div class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <div class="text-text-weak">No investigations in this session yet</div>
+      </div>
+    </div>
+  )
+}
+
+function LoadingState() {
+  return (
+    <div class="flex-1 flex items-center justify-center">
+      <div class="text-text-weak">Loading investigation data...</div>
+    </div>
+  )
+}
+
+function ErrorState(props: { error: Error }) {
+  return (
+    <div class="flex-1 flex items-center justify-center">
+      <div class="text-center">
+        <div class="text-text-weak mb-2">Failed to load investigation</div>
+        <div class="text-12-regular text-text-weak">{props.error.message}</div>
+      </div>
     </div>
   )
 }

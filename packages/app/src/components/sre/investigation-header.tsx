@@ -1,4 +1,4 @@
-import { A } from "@solidjs/router"
+import { A, useParams } from "@solidjs/router"
 import { createMemo } from "solid-js"
 import type { Investigation } from "../../pages/sre/types"
 import { StatusBadge } from "./status-badge"
@@ -23,6 +23,8 @@ function formatPhase(phase?: string): string {
 }
 
 export function InvestigationHeader(props: Props) {
+  const params = useParams()
+  const href = createMemo(() => (params.dir ? `/${params.dir}/investigations` : "/investigations"))
   const elapsed = createMemo(() => {
     if (!props.investigation) return "—"
     return formatElapsed(props.investigation.startedAt, props.investigation.completedAt)
@@ -36,44 +38,13 @@ export function InvestigationHeader(props: Props) {
   return (
     <div class="mb-6">
       <div class="flex items-center gap-2 text-xs text-[var(--aui-color-n-4)] mb-3">
-        <A 
-          href="/investigations" 
-          class="hover:text-[var(--aui-color-primary)] transition-colors"
-        >
+        <A href={href()} class="hover:text-[var(--aui-color-primary)] transition-colors">
           Investigations
         </A>
         <span>/</span>
         <span class="text-[var(--aui-color-n-2)] truncate max-w-[300px]">
           {props.investigation?.name || "Loading..."}
         </span>
-      </div>
-
-      <div class="flex items-start justify-between gap-4">
-        <div class="flex-1 min-w-0">
-          <h1 class="text-xl font-semibold text-[var(--aui-color-n-1)] mb-2 truncate">
-            {props.investigation?.name || "Loading..."}
-          </h1>
-          <p class="text-sm text-[var(--aui-color-n-4)] line-clamp-2">
-            {props.investigation?.description}
-          </p>
-        </div>
-
-        <div class="flex items-center gap-4 shrink-0">
-          <div class="flex flex-col items-end gap-1">
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-[var(--aui-color-n-4)]">Phase:</span>
-              <span class="text-sm font-medium text-[var(--aui-color-n-2)]">{phase()}</span>
-            </div>
-            <div class="flex items-center gap-2">
-              <span class="text-xs text-[var(--aui-color-n-4)]">Elapsed:</span>
-              <span class="text-sm font-medium text-[var(--aui-color-n-2)]">{elapsed()}</span>
-            </div>
-          </div>
-          
-          {props.investigation && (
-            <StatusBadge status={props.investigation.status} />
-          )}
-        </div>
       </div>
     </div>
   )

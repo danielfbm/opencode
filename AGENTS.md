@@ -3,6 +3,15 @@
 - The default branch in this repo is `dev`.
 - Prefer automation: execute requested actions without confirmation unless blocked by missing info or safety/irreversibility.
 
+## SRE Customizations
+
+- The SRE app styles live in `packages/app/src/index-sre.css`. Keep changes scoped to `.sre-*` or `.flow-*` classes to avoid impacting non‑SRE UI.
+- Investigation flow UI lives in `packages/app/src/components/investigation-flow/*`. Keep visual/status tweaks here, not in shared components.
+- Status colors (SRE + investigation flow): validated `#00c261`, invalidated `#eb0027`, inconclusive `#8c52ff`, pending `#ced9ec`.
+- Incident node uses invalidated styling (light red background, red border). Root‑cause node uses validated styling (light green background, green border).
+- Data collection panels should exclude validation sources. Hypothesis panels should display validator summary when available.
+- Avoid flashing on polling updates: keep existing data on transient errors and favor smooth transitions.
+
 ## Style Guide
 
 - Keep things in one function unless composable or reusable

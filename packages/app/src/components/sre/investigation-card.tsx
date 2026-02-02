@@ -1,5 +1,5 @@
 import { createSignal, Show } from "solid-js"
-import { A } from "@solidjs/router"
+import { A, useParams } from "@solidjs/router"
 import type { Investigation } from "../../pages/sre/types"
 import { StatusBadge } from "./status-badge"
 
@@ -9,6 +9,7 @@ interface Props {
 }
 
 export function InvestigationCard(props: Props) {
+  const params = useParams()
   const [menuOpen, setMenuOpen] = createSignal(false)
 
   const formatDuration = (ms: number) => {
@@ -24,8 +25,11 @@ export function InvestigationCard(props: Props) {
   }
 
   const duration = () => {
-    const end = props.investigation.completedAt || Date.now()
-    return formatDuration(end - props.investigation.startedAt)
+    const end = props.investigation.completedAt ?? props.investigation.updatedAt
+    if (end) return formatDuration(end - props.investigation.startedAt)
+    const current = Date.now()
+    const diff = Math.max(current - props.investigation.startedAt, 0)
+    return formatDuration(diff)
   }
 
   const startedDate = () => {
@@ -40,12 +44,15 @@ export function InvestigationCard(props: Props) {
   return (
     <div class="sre-card relative hover:shadow-md transition-shadow">
       <div class="sre-card-title">
-        <A
-          href={`/investigations/${props.investigation.id}`}
-          class="hover:text-[rgb(var(--aui-color-blue-rgb))] transition-colors"
-        >
-          {props.investigation.name}
-        </A>
+        <div class="flex items-center gap-2 min-w-0">
+          <A
+            href={`/${params.dir}/investigations/${props.investigation.id}`}
+            class="hover:text-[rgb(var(--aui-color-blue-rgb))] transition-colors truncate"
+          >
+            {props.investigation.name}
+          </A>
+
+        </div>
         <div class="relative">
           <button
             class="p-1 rounded hover:bg-[var(--aui-color-n-8)] text-[var(--aui-color-n-4)]"
@@ -70,7 +77,7 @@ export function InvestigationCard(props: Props) {
           </button>
 
           <Show when={menuOpen()}>
-            <div 
+            <div
               class="absolute right-0 top-full mt-1 w-32 bg-[var(--aui-color-surface)] border border-[var(--aui-color-border)] rounded shadow-lg z-10 py-1"
               onClick={(e) => e.stopPropagation()}
             >
@@ -104,7 +111,9 @@ export function InvestigationCard(props: Props) {
       </div>
 
       <div class="flex items-center gap-3 mb-4 text-xs text-[var(--aui-color-n-4)]">
-        <StatusBadge status={props.investigation.status} size="sm" />
+        <span><Show when={props.investigation.hasInvestigation}>
+            <StatusBadge status={props.investigation.status} size="sm" />
+          </Show></span>
         <span>{duration()}</span>
         <span>•</span>
         <span>{startedDate()}</span>
@@ -115,9 +124,6 @@ export function InvestigationCard(props: Props) {
       </p>
 
       <div class="flex items-center gap-2 text-xs font-medium text-[var(--aui-color-n-4)]">
-        <span class="bg-[var(--aui-color-n-9)] px-2 py-1 rounded border border-[var(--aui-color-n-8)]">
-          {props.investigation.severity || "P4"}
-        </span>
         <Show when={props.investigation.affectedService}>
           <span class="bg-[var(--aui-color-n-9)] px-2 py-1 rounded border border-[var(--aui-color-n-8)]">
             {props.investigation.affectedService}

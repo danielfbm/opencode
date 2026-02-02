@@ -12,13 +12,13 @@ export function DialogConfirmDelete(props: Props) {
   return (
     <Show when={props.isOpen}>
       <Portal>
-        <div class="fixed inset-0 z-50 flex items-center justify-center">
-          <div 
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        <div class="sre-theme fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            class="sre-dialog-backdrop absolute inset-0 transition-opacity"
             onClick={props.onClose}
           />
           
-          <div class="relative bg-[var(--aui-color-surface)] rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden border border-[var(--aui-color-border)] animate-in fade-in zoom-in-95 duration-200">
+          <div class="sre-dialog-panel relative bg-[var(--aui-color-surface)] rounded-lg shadow-xl max-w-md w-full mx-4 overflow-hidden border border-[var(--aui-color-border)] animate-in fade-in zoom-in-95 duration-200">
             <div class="px-6 py-4 border-b border-[var(--aui-color-border)]">
               <h3 class="text-lg font-semibold text-[var(--aui-color-n-1)]">
                 Delete Investigation

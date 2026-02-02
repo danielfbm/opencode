@@ -70,7 +70,6 @@ import { ConstrainDragXAxis } from "@/utils/solid-dnd"
 import { navStart } from "@/utils/perf"
 import { DialogSelectDirectory } from "@/components/dialog-select-directory"
 import { DialogEditProject } from "@/components/dialog-edit-project"
-import { DialogNewInvestigation } from "@/components/dialog-new-investigation"
 import { Titlebar } from "@/components/titlebar"
 import { useServer } from "@/context/server"
 import { useLanguage, type Locale } from "@/context/language"
@@ -1947,17 +1946,17 @@ export default function Layout(props: ParentProps) {
   }
 
   const NewSessionItem = (props: { slug: string; mobile?: boolean; dense?: boolean }): JSX.Element => {
-    const label = "New Investigation"
+    const label = language.t("command.session.new")
     const tooltip = () => props.mobile || !sidebarExpanded()
     const item = (
-      <div
-        class={`flex items-center justify-between gap-3 min-w-0 text-left w-full focus:outline-none ${props.dense ? "py-0.5" : "py-1"} cursor-pointer`}
+      <A
+        href={`${props.slug}/session`}
+        end
+        class={`flex items-center justify-between gap-3 min-w-0 text-left w-full focus:outline-none ${props.dense ? "py-0.5" : "py-1"}`}
         onClick={() => {
           setState("hoverSession", undefined)
-          if (!layout.sidebar.opened()) {
-            queueMicrotask(() => setState("hoverProject", undefined))
-          }
-          dialog.show(() => <DialogNewInvestigation />)
+          if (layout.sidebar.opened()) return
+          queueMicrotask(() => setState("hoverProject", undefined))
         }}
       >
         <div class="flex items-center gap-1 w-full">
@@ -1968,7 +1967,7 @@ export default function Layout(props: ParentProps) {
             {label}
           </span>
         </div>
-      </div>
+      </A>
     )
 
     return (
@@ -2037,22 +2036,17 @@ export default function Layout(props: ParentProps) {
   const SortableWorkspace = (props: { directory: string; project: LocalProject; mobile?: boolean }): JSX.Element => {
     const sortable = createSortable(props.directory)
     const [workspaceStore, setWorkspaceStore] = globalSync.child(props.directory, { bootstrap: false })
-    const [searchQuery, setSearchQuery] = createSignal("")
     const [menu, setMenu] = createStore({
       open: false,
       pendingRename: false,
     })
     const slug = createMemo(() => base64Encode(props.directory))
-    const sessions = createMemo(() => {
-      const allSessions = workspaceStore.session
+    const sessions = createMemo(() =>
+      workspaceStore.session
         .filter((session) => session.directory === workspaceStore.path.directory)
         .filter((session) => !session.parentID && !session.time?.archived)
-        .toSorted(sortSessions(Date.now()))
-
-      if (!searchQuery()) return allSessions
-
-      return allSessions.filter((s) => s.title.toLowerCase().includes(searchQuery().toLowerCase()))
-    })
+        .toSorted(sortSessions(Date.now())),
+    )
     const children = createMemo(() => {
       const map = new Map<string, string[]>()
       for (const session of workspaceStore.session) {
@@ -2235,18 +2229,6 @@ export default function Layout(props: ParentProps) {
           </div>
 
           <Collapsible.Content>
-            <div class="px-3 pb-2">
-              <div class="relative flex items-center">
-                <Icon name="search" size="small" class="absolute left-2 text-icon-weak" />
-                <input
-                  type="text"
-                  placeholder="Search investigations..."
-                  class="w-full bg-background-base border border-border-weak-base rounded-md py-1 pl-8 pr-2 text-12-regular focus:outline-none focus:border-border-active transition-colors"
-                  value={searchQuery()}
-                  onInput={(e) => setSearchQuery(e.currentTarget.value)}
-                />
-              </div>
-            </div>
             <nav class="flex flex-col gap-1 px-2">
               <NewSessionItem slug={slug()} mobile={props.mobile} />
               <Show when={loading()}>
@@ -2467,18 +2449,13 @@ export default function Layout(props: ParentProps) {
 
   const LocalWorkspace = (props: { project: LocalProject; mobile?: boolean }): JSX.Element => {
     const [workspaceStore, setWorkspaceStore] = globalSync.child(props.project.worktree)
-    const [searchQuery, setSearchQuery] = createSignal("")
     const slug = createMemo(() => base64Encode(props.project.worktree))
-    const sessions = createMemo(() => {
-      const allSessions = workspaceStore.session
+    const sessions = createMemo(() =>
+      workspaceStore.session
         .filter((session) => session.directory === workspaceStore.path.directory)
         .filter((session) => !session.parentID && !session.time?.archived)
-        .toSorted(sortSessions(Date.now()))
-
-      if (!searchQuery()) return allSessions
-
-      return allSessions.filter((s) => s.title.toLowerCase().includes(searchQuery().toLowerCase()))
-    })
+        .toSorted(sortSessions(Date.now())),
+    )
     const children = createMemo(() => {
       const map = new Map<string, string[]>()
       for (const session of workspaceStore.session) {
@@ -2505,21 +2482,9 @@ export default function Layout(props: ParentProps) {
         ref={(el) => {
           if (!props.mobile) scrollContainerRef = el
         }}
-        class="size-full flex flex-col py-2 overflow-hidden"
+        class="size-full flex flex-col py-2 overflow-y-auto no-scrollbar [overflow-anchor:none]"
       >
-        <div class="px-3 pb-2">
-          <div class="relative flex items-center">
-            <Icon name="search" size="small" class="absolute left-2 text-icon-weak" />
-            <input
-              type="text"
-              placeholder="Search investigations..."
-              class="w-full bg-background-base border border-border-weak-base rounded-md py-1 pl-8 pr-2 text-12-regular focus:outline-none focus:border-border-active transition-colors"
-              value={searchQuery()}
-              onInput={(e) => setSearchQuery(e.currentTarget.value)}
-            />
-          </div>
-        </div>
-        <nav class="flex-1 flex flex-col gap-1 px-2 overflow-y-auto no-scrollbar [overflow-anchor:none]">
+        <nav class="flex flex-col gap-1 px-2">
           <Show when={loading()}>
             <SessionSkeleton />
           </Show>
@@ -2697,7 +2662,7 @@ export default function Layout(props: ParentProps) {
                   <>
                     <div class="py-4 px-3">
                       <TooltipKeybind
-                        title="New Investigation"
+                        title={language.t("command.session.new")}
                         keybind={command.keybind("session.new")}
                         placement="top"
                       >
@@ -2710,10 +2675,11 @@ export default function Layout(props: ParentProps) {
                               setState("hoverSession", undefined)
                               setState("hoverProject", undefined)
                             }
-                            dialog.show(() => <DialogNewInvestigation />)
+                            navigate(`/${base64Encode(p.worktree)}/session`)
+                            layout.mobileSidebar.hide()
                           }}
                         >
-                          New Investigation
+                          {language.t("command.session.new")}
                         </Button>
                       </TooltipKeybind>
                     </div>

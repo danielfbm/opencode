@@ -147,8 +147,8 @@ export function HypothesisFlow(props: HypothesisFlowProps) {
   const statusColors: Record<HypothesisStatus, string> = {
     validated: "#00c261",
     invalidated: "#eb0027",
-    pending: "#8c9ebf",
-    inconclusive: "#f5a300"
+    pending: "#ced9ec",
+    inconclusive: "#8c52ff"
   }
 
   return (
@@ -210,28 +210,21 @@ export function HypothesisFlow(props: HypothesisFlowProps) {
                   width={node.width}
                   height={node.height}
                   rx="6"
-                  fill={node.type === "incident" ? "#007af5" : 
-                        node.type === "conclusion" ? "#00c261" :
+                  fill={node.type === "incident" ? "#fef2f2" : 
+                        node.type === "conclusion" ? "#e6f9ee" :
                         node.type === "source" ? "#f7f9fc" : "#ffffff"}
-                  stroke={node.type === "hypothesis" && node.status ? statusColors[node.status] : 
+                  stroke={node.type === "incident" ? "#eb0027" :
+                          node.type === "conclusion" ? "#00c261" :
+                          node.type === "hypothesis" && node.status ? statusColors[node.status] :
                           node.type === "source" ? "#ced9ec" : "transparent"}
-                  stroke-width={node.type === "hypothesis" ? "2" : "1"}
+                  stroke-width={node.type === "hypothesis" || node.type === "incident" || node.type === "conclusion" ? "2" : "1"}
                 />
-                
-                <Show when={node.type === "hypothesis" && node.status}>
-                  <circle
-                    cx={node.width - 12}
-                    cy="12"
-                    r="5"
-                    fill={statusColors[node.status!]}
-                  />
-                </Show>
 
                 <text
                   x={node.width / 2}
                   y={node.sublabel ? node.height / 2 - 6 : node.height / 2 + 4}
                   text-anchor="middle"
-                  fill={node.type === "incident" || node.type === "conclusion" ? "#ffffff" : "#1a2b4b"}
+                  fill="#1a2b4b"
                   font-size={node.type === "source" ? "11" : "12"}
                   font-weight="500"
                 >
@@ -243,7 +236,7 @@ export function HypothesisFlow(props: HypothesisFlowProps) {
                     x={node.width / 2}
                     y={node.height / 2 + 12}
                     text-anchor="middle"
-                    fill={node.type === "incident" || node.type === "conclusion" ? "rgba(255,255,255,0.8)" : "#6b7d9d"}
+                    fill="#6b7d9d"
                     font-size="11"
                   >
                     {truncate(node.sublabel!, 35)}
@@ -270,11 +263,11 @@ function FlowLegend() {
         <span>Invalidated</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style={{ "background-color": "#8c9ebf" }} />
+        <span class="legend-dot" style={{ "background-color": "#ced9ec" }} />
         <span>Pending</span>
       </div>
       <div class="legend-item">
-        <span class="legend-dot" style={{ "background-color": "#f5a300" }} />
+        <span class="legend-dot" style={{ "background-color": "#8c52ff" }} />
         <span>Inconclusive</span>
       </div>
     </div>

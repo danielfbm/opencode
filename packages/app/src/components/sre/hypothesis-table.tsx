@@ -13,7 +13,7 @@ function getStatusColor(status: Hypothesis["status"]): string {
     case "invalidated":
       return "bg-[var(--aui-color-red)]/15 text-[var(--aui-color-red)]"
     case "inconclusive":
-      return "bg-[var(--aui-color-yellow)]/15 text-[var(--aui-color-yellow)]"
+      return "bg-[#f9f5ff] text-[#8c52ff]"
     case "pending":
     default:
       return "bg-[var(--aui-color-n-7)] text-[var(--aui-color-n-3)]"

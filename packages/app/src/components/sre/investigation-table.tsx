@@ -1,5 +1,5 @@
 import { For, Show } from "solid-js"
-import { useNavigate } from "@solidjs/router"
+import { useNavigate, useParams } from "@solidjs/router"
 import type { Investigation } from "../../pages/sre/types"
 import { StatusBadge } from "./status-badge"
 
@@ -10,15 +10,26 @@ interface Props {
 
 export function InvestigationTable(props: Props) {
   const navigate = useNavigate()
+  const params = useParams()
 
   const formatDuration = (start: number, end?: number) => {
-    const ms = (end || Date.now()) - start
+    if (end) {
+      const ms = Math.max(end - start, 0)
+      const seconds = Math.floor(ms / 1000)
+      const minutes = Math.floor(seconds / 60)
+      const hours = Math.floor(minutes / 60)
+      if (hours > 0) return `${hours}h ${minutes % 60}m`
+      if (minutes > 0) return `${minutes}m`
+      return "< 1m"
+    }
+    const ms = Math.max(Date.now() - start, 0)
     const seconds = Math.floor(ms / 1000)
     const minutes = Math.floor(seconds / 60)
     const hours = Math.floor(minutes / 60)
-    
+
     if (hours > 0) return `${hours}h ${minutes % 60}m`
-    return `${minutes}m`
+    if (minutes > 0) return `${minutes}m`
+    return "< 1m"
   }
 
   const formatDate = (ms: number) => {
@@ -35,9 +46,9 @@ export function InvestigationTable(props: Props) {
       <table class="w-full text-left border-collapse">
         <thead>
           <tr class="border-b border-[var(--aui-color-border)] text-xs font-semibold text-[var(--aui-color-n-4)] uppercase bg-[var(--aui-color-n-9)]">
-            <th class="px-4 py-3 w-[240px]">Investigation</th>
-            <th class="px-4 py-3 w-[120px]">Status</th>
+            <th class="px-4 py-3 w-[300px]">Investigation</th>
             <th class="px-4 py-3">Description</th>
+            <th class="px-4 py-3 w-[100px]">Status</th>
             <th class="px-4 py-3 w-[160px]">Started</th>
             <th class="px-4 py-3 w-[100px]">Duration</th>
             <th class="px-4 py-3 w-[60px]"></th>
@@ -46,27 +57,34 @@ export function InvestigationTable(props: Props) {
         <tbody>
           <For each={props.investigations}>
             {(inv) => (
-              <tr 
+              <tr
                 class="border-b border-[var(--aui-color-border)] last:border-0 hover:bg-[var(--aui-color-n-9)] cursor-pointer transition-colors"
-                onClick={() => navigate(`/investigations/${inv.id}`)}
+                onClick={() => navigate(`/${params.dir}/investigations/${inv.id}`)}
               >
                 <td class="px-4 py-3">
-                  <div class="font-medium text-[var(--aui-color-n-1)]">{inv.name}</div>
-                  <div class="text-xs text-[var(--aui-color-n-4)] mt-0.5">{inv.id}</div>
-                </td>
-                <td class="px-4 py-3">
-                  <StatusBadge status={inv.status} size="sm" />
+                  <div class="flex items-center gap-2">
+                    <div class="font-medium text-[var(--aui-color-n-1)]">{inv.name}</div>
+
+                  </div>
+
                 </td>
                 <td class="px-4 py-3">
                   <p class="text-sm text-[var(--aui-color-n-3)] line-clamp-2 max-w-[400px]">
+
                     {inv.description}
                   </p>
                 </td>
-                <td class="px-4 py-3 text-sm text-[var(--aui-color-n-3)]">
-                  {formatDate(inv.startedAt)}
+                <td class="px-4 py-3">
+                  <Show when={inv.hasInvestigation}>
+                      <StatusBadge status={inv.status} size="sm" />
+                    </Show>
                 </td>
                 <td class="px-4 py-3 text-sm text-[var(--aui-color-n-3)]">
-                  {formatDuration(inv.startedAt, inv.completedAt)}
+                  {formatDate(inv.startedAt)}
+
+                </td>
+                <td class="px-4 py-3 text-sm text-[var(--aui-color-n-3)]">
+                   {formatDuration(inv.startedAt, inv.completedAt ?? inv.updatedAt)}
                 </td>
                 <td class="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <button

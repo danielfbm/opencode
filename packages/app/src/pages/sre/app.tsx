@@ -18,6 +18,7 @@ import SreLayout from "./layout"
 
 const InvestigationsList = lazy(() => import("./investigations-list"))
 const InvestigationDetails = lazy(() => import("./investigation-details"))
+const InvestigationSessionPage = lazy(() => import("./investigation-session-page"))
 const WorkspaceSelect = lazy(() => import("./workspace-select"))
 const NotFound = lazy(() => import("./not-found"))
 
@@ -109,6 +110,14 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                 component={() => (
                   <Suspense fallback={<Loading />}>
                     <InvestigationDetails />
+                  </Suspense>
+                )}
+              />
+              <Route
+                path="/:dir/session/:id"
+                component={() => (
+                  <Suspense fallback={<Loading />}>
+                    <InvestigationSessionPage />
                   </Suspense>
                 )}
               />

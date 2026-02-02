@@ -11,10 +11,10 @@ export function StatusBadge(props: StatusBadgeProps) {
 
   return (
     <Switch>
-      <Match when={props.status === "in_progress"}>
+      <Match when={props.status === "in_progress" }>
         <span class={`sre-badge sre-badge-primary ${sizeClass()}`}>In Progress</span>
       </Match>
-      <Match when={props.status === "concluded"}>
+      <Match when={props.status === "concluded" }>
         <span class={`sre-badge sre-badge-success ${sizeClass()}`}>Concluded</span>
       </Match>
       <Match when={props.status === "inconclusive"}>

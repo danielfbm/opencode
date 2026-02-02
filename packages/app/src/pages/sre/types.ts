@@ -31,14 +31,17 @@ export interface Investigation {
   name: string
   description: string
   status: InvestigationStatus
+  hasInvestigation?: boolean
   severity?: Severity
   affectedService?: string
   namespace?: string
   cluster?: string
   startedAt: number
+  updatedAt?: number
   completedAt?: number
   directory: string
   sessionId?: string
+  parentId?: string
   currentPhase?: string
   rootCause?: string
   hypothesesCount?: number

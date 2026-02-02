@@ -1,4 +1,4 @@
-import type { Investigation, Hypothesis, Observation } from "./types"
+import type { Hypothesis, Observation } from "./types"
 
 export const mockReports: Record<string, string> = {
   "INC-001": `# Investigation Report: High CPU Usage on Payment Service
@@ -205,87 +205,4 @@ export const mockObservations: Record<string, Observation[]> = {
   ]
 }
 
-export const mockInvestigations: Investigation[] = [
-  {
-    id: "INC-001",
-    name: "High CPU Usage on Payment Service",
-    description: "Payment service pods experiencing 95%+ CPU usage causing slow response times",
-    status: "concluded",
-    severity: "P1",
-    affectedService: "payment-service",
-    namespace: "production",
-    cluster: "prod-east-1",
-    startedAt: Date.now() - 3600000 * 2,
-    completedAt: Date.now() - 3600000,
-    directory: "/sre-investigations/INC-001",
-    currentPhase: "CONCLUDED",
-    rootCause: "Memory leak in payment validation causing excessive garbage collection and CPU spikes. Rollback to v2.3.1 resolved the issue.",
-    hypothesesCount: 5,
-    observationsCount: 12
-  },
-  {
-    id: "INC-002",
-    name: "Database Connection Pool Exhaustion",
-    description: "PostgreSQL connection pool depleted causing service failures",
-    status: "in_progress",
-    severity: "P2",
-    affectedService: "user-service",
-    namespace: "production",
-    cluster: "prod-east-1",
-    startedAt: Date.now() - 1800000,
-    directory: "/sre-investigations/INC-002",
-    currentPhase: "VALIDATING",
-    hypothesesCount: 3,
-    observationsCount: 8
-  },
-  {
-    id: "INC-003",
-    name: "Kubernetes Pod CrashLoopBackOff",
-    description: "Analytics service pods repeatedly crashing with OOMKilled status",
-    status: "inconclusive",
-    severity: "P3",
-    affectedService: "analytics-service",
-    namespace: "staging",
-    cluster: "stage-west-1",
-    startedAt: Date.now() - 86400000,
-    completedAt: Date.now() - 82800000,
-    directory: "/sre-investigations/INC-003",
-    currentPhase: "CONCLUDED",
-    rootCause: "Investigation inconclusive - memory consumption patterns inconsistent",
-    hypothesesCount: 4,
-    observationsCount: 15
-  },
-  {
-    id: "INC-004",
-    name: "API Gateway 503 Errors",
-    description: "Intermittent 503 errors from API gateway affecting mobile clients",
-    status: "canceled",
-    severity: "P2",
-    affectedService: "api-gateway",
-    namespace: "production",
-    cluster: "prod-east-1",
-    startedAt: Date.now() - 172800000,
-    completedAt: Date.now() - 169200000,
-    directory: "/sre-investigations/INC-004",
-    currentPhase: "CANCELED",
-    hypothesesCount: 2,
-    observationsCount: 5
-  },
-  {
-    id: "INC-005",
-    name: "Elasticsearch Cluster Yellow Status",
-    description: "Search cluster in yellow state with unassigned shards",
-    status: "concluded",
-    severity: "P3",
-    affectedService: "search-service",
-    namespace: "production",
-    cluster: "prod-east-1",
-    startedAt: Date.now() - 259200000,
-    completedAt: Date.now() - 255600000,
-    directory: "/sre-investigations/INC-005",
-    currentPhase: "CONCLUDED",
-    rootCause: "Disk space threshold reached on node-3 causing shard allocation failures. Expanded disk and rebalanced shards.",
-    hypothesesCount: 3,
-    observationsCount: 9
-  }
-]
+

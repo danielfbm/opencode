@@ -9,6 +9,7 @@ import {
   createEffect,
   createSignal,
   on,
+  untrack,
   type JSX,
 } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -31,7 +32,6 @@ import { SessionTurn } from "@opencode-ai/ui/session-turn"
 import { BasicTool } from "@opencode-ai/ui/basic-tool"
 import { createAutoScroll } from "@opencode-ai/ui/hooks"
 import { SessionReview } from "@opencode-ai/ui/session-review"
-import { Mark } from "@opencode-ai/ui/logo"
 
 import { DragDropProvider, DragDropSensors, DragOverlay, SortableProvider, closestCenter } from "@thisbeyond/solid-dnd"
 import type { DragEvent } from "@thisbeyond/solid-dnd"
@@ -51,7 +51,7 @@ import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useNavigate, useParams } from "@solidjs/router"
 import { UserMessage } from "@opencode-ai/sdk/v2"
-import type { FileDiff } from "@opencode-ai/sdk/v2/client"
+import type { FileDiff, Message } from "@opencode-ai/sdk/v2/client"
 import { useSDK } from "@/context/sdk"
 import { usePrompt } from "@/context/prompt"
 import { useComments, type LineComment } from "@/context/comments"
@@ -69,6 +69,7 @@ import {
   NewSessionView,
 } from "@/components/session"
 import { InvestigationFlow } from "@/components/investigation-flow"
+import { resolveInvestigationForSession, type InvestigationLookup } from "@/utils/investigation"
 import { navMark, navParams } from "@/utils/perf"
 import { same } from "@/utils/same"
 
@@ -225,7 +226,11 @@ function SessionReviewTab(props: SessionReviewTabProps) {
   )
 }
 
-export default function Page() {
+export interface SessionPageProps {
+  sessionId?: string
+}
+
+export default function Page(props: SessionPageProps) {
   const layout = useLayout()
   const local = useLocal()
   const file = useFile()
@@ -242,10 +247,12 @@ export default function Page() {
   const comments = useComments()
   const permission = usePermission()
 
+  const sessionID = () => props.sessionId ?? params.id
+
   const request = createMemo(() => {
-    const sessionID = params.id
-    if (!sessionID) return
-    const next = sync.data.permission[sessionID]?.[0]
+    const id = sessionID()
+    if (!id) return
+    const next = sync.data.permission[id]?.[0]
     if (!next) return
     if (next.tool) return
     return next
@@ -258,23 +265,61 @@ export default function Page() {
     autoCreated: false,
   })
 
-  const [isInvestigation, setIsInvestigation] = createSignal(false)
+  const [investigationLookup, setInvestigationLookup] = createSignal<InvestigationLookup>({ available: false })
+  const isInvestigation = createMemo(() => investigationLookup().available)
+  const investigationDirectory = createMemo(() => investigationLookup().directory)
+  const [defaulted, setDefaulted] = createSignal<string | null>(null)
 
-  createEffect(() => {
-    const session = info()
-    if (!session) return
-    sdk.client.file
-      .read({ path: "metadata.yaml", directory: session.directory })
-      .then(() => setIsInvestigation(true))
-      .catch(() => setIsInvestigation(false))
-  })
+  createEffect(
+    on(
+      () => sessionID(),
+      () => setInvestigationLookup({ available: false }),
+      { defer: true },
+    ),
+  )
 
-  createEffect(() => {
-    // if (isInvestigation()) {
-    //   layout.fileTree.setTab("investigation")
-    //   if (!isDesktop()) setStore("mobileTab", "investigation")
-    // }
-  })
+  createEffect(
+    on(
+      () => [sessionID(), info()?.directory] as const,
+      ([id, dir]) => {
+        if (!id || !dir) {
+          setInvestigationLookup({ available: false })
+          return
+        }
+
+        const refresh = async () => {
+          const current = id
+          const messages = sync.data.message[id] ?? []
+          const parts = sync.data.part
+          const next = await resolveInvestigationForSession({
+            client: sdk.client,
+            sessionId: id,
+            directory: dir,
+            messages,
+            parts,
+            fetchMessages: true,
+          })
+          if (sessionID() !== current) return
+          const update = (prev: InvestigationLookup) => {
+            if (!next.available && prev.available) return prev
+            if (!next.directory && prev.directory) return prev
+            return next
+          }
+          setInvestigationLookup(update)
+          if (!next.available) return
+          if (defaulted() === current) return
+          setFileTreeTab("investigation")
+          setStore("mobileTab", "investigation")
+          layout.fileTree.close()
+          setDefaulted(current)
+        }
+
+        void refresh()
+        const interval = window.setInterval(refresh, 5000)
+        onCleanup(() => window.clearInterval(interval))
+      },
+    ),
+  )
 
   createEffect(
     on(
@@ -298,14 +343,14 @@ export default function Page() {
       })
       .finally(() => setUi("responding", false))
   }
-  const sessionKey = createMemo(() => `${params.dir}${params.id ? "/" + params.id : ""}`)
+  const sessionKey = createMemo(() => `${params.dir}${sessionID() ? "/" + sessionID() : ""}`)
   const tabs = createMemo(() => layout.tabs(sessionKey))
   const view = createMemo(() => layout.view(sessionKey))
 
   if (import.meta.env.DEV) {
     createEffect(
       on(
-        () => [params.dir, params.id] as const,
+        () => [params.dir, sessionID()] as const,
         ([dir, id], prev) => {
           if (!id) return
           navParams({ dir, from: prev?.[1], to: id })
@@ -314,28 +359,28 @@ export default function Page() {
     )
 
     createEffect(() => {
-      const id = params.id
+      const id = sessionID()
       if (!id) return
       if (!prompt.ready()) return
       navMark({ dir: params.dir, to: id, name: "storage:prompt-ready" })
     })
 
     createEffect(() => {
-      const id = params.id
+      const id = sessionID()
       if (!id) return
       if (!terminal.ready()) return
       navMark({ dir: params.dir, to: id, name: "storage:terminal-ready" })
     })
 
     createEffect(() => {
-      const id = params.id
+      const id = sessionID()
       if (!id) return
       if (!file.ready()) return
       navMark({ dir: params.dir, to: id, name: "storage:file-view-ready" })
     })
 
     createEffect(() => {
-      const id = params.id
+      const id = sessionID()
       if (!id) return
       if (sync.data.message[id] === undefined) return
       navMark({ dir: params.dir, to: id, name: "session:data-ready" })
@@ -343,7 +388,8 @@ export default function Page() {
   }
 
   const isDesktop = createMediaQuery("(min-width: 768px)")
-  const centered = createMemo(() => isDesktop() && !layout.fileTree.opened())
+  const sidePanelOpen = createMemo(() => isDesktop() && (layout.fileTree.opened() || isInvestigation()))
+  const centered = createMemo(() => isDesktop() && !sidePanelOpen())
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -396,24 +442,36 @@ export default function Page() {
     tabs().setActive(normalized)
   })
 
-  const info = createMemo(() => (params.id ? sync.session.get(params.id) : undefined))
-  const diffs = createMemo(() => (params.id ? (sync.data.session_diff[params.id] ?? []) : []))
+  const info = createMemo(() => {
+    const id = sessionID()
+    if (!id) return
+    return sync.session.get(id)
+  })
+  const diffs = createMemo<FileDiff[]>(() => {
+    const id = sessionID()
+    if (!id) return []
+    return sync.data.session_diff[id] ?? []
+  })
   const reviewCount = createMemo(() => Math.max(info()?.summary?.files ?? 0, diffs().length))
   const hasReview = createMemo(() => reviewCount() > 0)
   const revertMessageID = createMemo(() => info()?.revert?.messageID)
-  const messages = createMemo(() => (params.id ? (sync.data.message[params.id] ?? []) : []))
+  const messages = createMemo<Message[]>(() => {
+    const id = sessionID()
+    if (!id) return []
+    return sync.data.message[id] ?? []
+  })
   const messagesReady = createMemo(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return true
     return sync.data.message[id] !== undefined
   })
   const historyMore = createMemo(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return false
     return sync.session.history.more(id)
   })
   const historyLoading = createMemo(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return false
     return sync.session.history.loading(id)
   })
@@ -454,7 +512,7 @@ export default function Page() {
     expanded: {} as Record<string, boolean>,
     messageId: undefined as string | undefined,
     turnStart: 0,
-    mobileTab: "session" as "session" | "changes",
+    mobileTab: "session" as "session" | "changes" | "investigation",
     newSessionWorktree: "main",
     promptHeight: 0,
   })
@@ -535,9 +593,9 @@ export default function Page() {
     return out
   })
   const emptyDiffFiles: string[] = []
-  const diffFiles = createMemo(() => diffs().map((d) => d.file), emptyDiffFiles, { equals: same })
+  const diffFiles = createMemo<string[]>(() => diffs().map((d) => d.file), emptyDiffFiles, { equals: same })
   const diffsReady = createMemo(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return true
     if (!hasReview()) return true
     return sync.data.session_diff[id] !== undefined
@@ -566,8 +624,9 @@ export default function Page() {
   const hasScrollGesture = () => Date.now() - ui.scrollGesture < scrollGestureWindowMs
 
   createEffect(() => {
-    if (!params.id) return
-    sync.session.sync(params.id)
+    const id = sessionID()
+    if (!id) return
+    sync.session.sync(id)
   })
 
   createEffect(() => {
@@ -631,11 +690,11 @@ export default function Page() {
     ),
   )
 
-  const status = createMemo(() => sync.data.session_status[params.id ?? ""] ?? idle)
+  const status = createMemo(() => sync.data.session_status[sessionID() ?? ""] ?? idle)
 
   createEffect(
     on(
-      () => params.id,
+      () => sessionID(),
       () => {
         setStore("messageId", undefined)
         setStore("expanded", {})
@@ -690,7 +749,9 @@ export default function Page() {
     })
   }
 
-  command.register(() => [
+  command.register(() => {
+    const id = sessionID()
+    return [
     {
       id: "session.new",
       title: language.t("command.session.new"),
@@ -774,7 +835,7 @@ export default function Page() {
       category: language.t("command.category.view"),
       keybind: "mod+e",
       slash: "steps",
-      disabled: !params.id,
+      disabled: !id,
       onSelect: () => {
         const msg = activeMessage()
         if (!msg) return
@@ -787,7 +848,7 @@ export default function Page() {
       description: language.t("command.message.previous.description"),
       category: language.t("command.category.session"),
       keybind: "mod+arrowup",
-      disabled: !params.id,
+      disabled: !id,
       onSelect: () => navigateMessageByOffset(-1),
     },
     {
@@ -796,7 +857,7 @@ export default function Page() {
       description: language.t("command.message.next.description"),
       category: language.t("command.category.session"),
       keybind: "mod+arrowdown",
-      disabled: !params.id,
+      disabled: !id,
       onSelect: () => navigateMessageByOffset(1),
     },
     {
@@ -847,21 +908,21 @@ export default function Page() {
     {
       id: "permissions.autoaccept",
       title:
-        params.id && permission.isAutoAccepting(params.id, sdk.directory)
+        id && permission.isAutoAccepting(id, sdk.directory)
           ? language.t("command.permissions.autoaccept.disable")
           : language.t("command.permissions.autoaccept.enable"),
       category: language.t("command.category.permissions"),
       keybind: "mod+shift+a",
-      disabled: !params.id || !permission.permissionsEnabled(),
+      disabled: !id || !permission.permissionsEnabled(),
       onSelect: () => {
-        const sessionID = params.id
-        if (!sessionID) return
-        permission.toggleAutoAccept(sessionID, sdk.directory)
+        const id = sessionID()
+        if (!id) return
+        permission.toggleAutoAccept(id, sdk.directory)
         showToast({
-          title: permission.isAutoAccepting(sessionID, sdk.directory)
+          title: permission.isAutoAccepting(id, sdk.directory)
             ? language.t("toast.permissions.autoaccept.on.title")
             : language.t("toast.permissions.autoaccept.off.title"),
-          description: permission.isAutoAccepting(sessionID, sdk.directory)
+          description: permission.isAutoAccepting(id, sdk.directory)
             ? language.t("toast.permissions.autoaccept.on.description")
             : language.t("toast.permissions.autoaccept.off.description"),
         })
@@ -873,18 +934,18 @@ export default function Page() {
       description: language.t("command.session.undo.description"),
       category: language.t("command.category.session"),
       slash: "undo",
-      disabled: !params.id || visibleUserMessages().length === 0,
+      disabled: !id || visibleUserMessages().length === 0,
       onSelect: async () => {
-        const sessionID = params.id
-        if (!sessionID) return
+        const id = sessionID()
+        if (!id) return
         if (status()?.type !== "idle") {
-          await sdk.client.session.abort({ sessionID }).catch(() => {})
+          await sdk.client.session.abort({ sessionID: id }).catch(() => {})
         }
         const revert = info()?.revert?.messageID
         // Find the last user message that's not already reverted
         const message = findLast(userMessages(), (x) => !revert || x.id < revert)
         if (!message) return
-        await sdk.client.session.revert({ sessionID, messageID: message.id })
+        await sdk.client.session.revert({ sessionID: id, messageID: message.id })
         // Restore the prompt from the reverted message
         const parts = sync.data.part[message.id]
         if (parts) {
@@ -902,16 +963,16 @@ export default function Page() {
       description: language.t("command.session.redo.description"),
       category: language.t("command.category.session"),
       slash: "redo",
-      disabled: !params.id || !info()?.revert?.messageID,
+      disabled: !sessionID() || !info()?.revert?.messageID,
       onSelect: async () => {
-        const sessionID = params.id
-        if (!sessionID) return
+        const id = sessionID()
+        if (!id) return
         const revertMessageID = info()?.revert?.messageID
         if (!revertMessageID) return
         const nextMessage = userMessages().find((x) => x.id > revertMessageID)
         if (!nextMessage) {
           // Full unrevert - restore all messages and navigate to last
-          await sdk.client.session.unrevert({ sessionID })
+          await sdk.client.session.unrevert({ sessionID: id })
           prompt.reset()
           // Navigate to the last message (the one that was at the revert point)
           const lastMsg = findLast(userMessages(), (x) => x.id >= revertMessageID)
@@ -919,7 +980,7 @@ export default function Page() {
           return
         }
         // Partial redo - move forward to next message
-        await sdk.client.session.revert({ sessionID, messageID: nextMessage.id })
+        await sdk.client.session.revert({ sessionID: id, messageID: nextMessage.id })
         // Navigate to the message before the new revert point
         const priorMsg = findLast(userMessages(), (x) => x.id < nextMessage.id)
         setActiveMessage(priorMsg)
@@ -931,10 +992,10 @@ export default function Page() {
       description: language.t("command.session.compact.description"),
       category: language.t("command.category.session"),
       slash: "compact",
-      disabled: !params.id || visibleUserMessages().length === 0,
+      disabled: !id || visibleUserMessages().length === 0,
       onSelect: async () => {
-        const sessionID = params.id
-        if (!sessionID) return
+        const id = sessionID()
+        if (!id) return
         const model = local.model.current()
         if (!model) {
           showToast({
@@ -944,7 +1005,7 @@ export default function Page() {
           return
         }
         await sdk.client.session.summarize({
-          sessionID,
+          sessionID: id,
           modelID: model.id,
           providerID: model.provider.id,
         })
@@ -956,7 +1017,7 @@ export default function Page() {
       description: language.t("command.session.fork.description"),
       category: language.t("command.category.session"),
       slash: "fork",
-      disabled: !params.id || visibleUserMessages().length === 0,
+      disabled: !id || visibleUserMessages().length === 0,
       onSelect: () => dialog.show(() => <DialogFork />),
     },
     ...(sync.data.config.share !== "disabled"
@@ -967,11 +1028,12 @@ export default function Page() {
             description: language.t("command.session.share.description"),
             category: language.t("command.category.session"),
             slash: "share",
-            disabled: !params.id || !!info()?.share?.url,
+            disabled: !id || !!info()?.share?.url,
             onSelect: async () => {
-              if (!params.id) return
+              const id = sessionID()
+              if (!id) return
               await sdk.client.session
-                .share({ sessionID: params.id })
+                .share({ sessionID: id })
                 .then((res) => {
                   navigator.clipboard.writeText(res.data!.share!.url).catch(() =>
                     showToast({
@@ -1002,11 +1064,12 @@ export default function Page() {
             description: language.t("command.session.unshare.description"),
             category: language.t("command.category.session"),
             slash: "unshare",
-            disabled: !params.id || !info()?.share?.url,
+            disabled: !id || !info()?.share?.url,
             onSelect: async () => {
-              if (!params.id) return
+              const id = sessionID()
+              if (!id) return
               await sdk.client.session
-                .unshare({ sessionID: params.id })
+                .unshare({ sessionID: id })
                 .then(() =>
                   showToast({
                     title: language.t("toast.session.unshare.success.title"),
@@ -1025,7 +1088,8 @@ export default function Page() {
           },
         ]
       : []),
-  ])
+    ]
+  })
 
   const handleKeyDown = (event: KeyboardEvent) => {
     const activeElement = document.activeElement as HTMLElement | undefined
@@ -1126,7 +1190,11 @@ export default function Page() {
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
 
   const fileTreeTab = () => layout.fileTree.tab()
-  const setFileTreeTab = (value: "changes" | "all") => layout.fileTree.setTab(value)
+  const setFileTreeTab = (value: "changes" | "all" | "investigation") => layout.fileTree.setTab(value)
+  const reveal = () => {
+    setFileTreeTab("investigation")
+    layout.fileTree.open()
+  }
 
   const [tree, setTree] = createStore({
     reviewScroll: undefined as HTMLDivElement | undefined,
@@ -1177,7 +1245,7 @@ export default function Page() {
           </Match>
           <Match when={true}>
             <div class="h-full px-6 pb-30 flex flex-col items-center justify-center text-center gap-6">
-              <Mark class="w-14 opacity-10" />
+              <Icon name="bullet-list" size="large" class="text-icon-weak opacity-20" />
               <div class="text-14-regular text-text-weak max-w-56">{language.t("session.review.empty")}</div>
             </div>
           </Match>
@@ -1308,7 +1376,7 @@ export default function Page() {
   })
 
   createEffect(() => {
-    const id = params.id
+    const id = sessionID()
     if (!id) return
 
     const wants = isDesktop()
@@ -1437,7 +1505,7 @@ export default function Page() {
 
   createEffect(
     on(
-      () => [params.id, messagesReady()] as const,
+      () => [sessionID(), messagesReady()] as const,
       ([id, ready]) => {
         cancelTurnBackfill()
         setStore("turnStart", 0)
@@ -1477,15 +1545,15 @@ export default function Page() {
   }
 
   createEffect(() => {
-    const sessionID = params.id
-    if (!sessionID) return
+    const id = sessionID()
+    if (!id) return
     const raw = sessionStorage.getItem("opencode.pendingMessage")
     if (!raw) return
     const parts = raw.split("|")
     const pendingSessionID = parts[0]
     const messageID = parts[1]
     if (!pendingSessionID || !messageID) return
-    if (pendingSessionID !== sessionID) return
+    if (pendingSessionID !== id) return
 
     sessionStorage.removeItem("opencode.pendingMessage")
     setUi("pendingMessage", messageID)
@@ -1638,9 +1706,9 @@ export default function Page() {
   }
 
   createEffect(() => {
-    const sessionID = params.id
+    const id = sessionID()
     const ready = messagesReady()
-    if (!sessionID || !ready) return
+    if (!id || !ready) return
 
     requestAnimationFrame(() => {
       applyHash("auto")
@@ -1649,9 +1717,9 @@ export default function Page() {
 
   // Retry message navigation once the target message is actually loaded.
   createEffect(() => {
-    const sessionID = params.id
+    const id = sessionID()
     const ready = messagesReady()
-    if (!sessionID || !ready) return
+    if (!id || !ready) return
 
     // dependencies
     visibleUserMessages().length
@@ -1676,9 +1744,9 @@ export default function Page() {
   })
 
   createEffect(() => {
-    const sessionID = params.id
+    const id = sessionID()
     const ready = messagesReady()
-    if (!sessionID || !ready) return
+    if (!id || !ready) return
 
     const handler = () => requestAnimationFrame(() => applyHash("auto"))
     window.addEventListener("hashchange", handler)
@@ -1747,10 +1815,12 @@ export default function Page() {
 
   return (
     <div class="relative bg-background-base size-full overflow-hidden flex flex-col">
-      <SessionHeader />
+      <Show when={!props.sessionId}>
+        <SessionHeader />
+      </Show>
       <div class="flex-1 min-h-0 flex flex-col md:flex-row">
         {/* Mobile tab bar */}
-        <Show when={!isDesktop() && params.id}>
+        <Show when={!isDesktop() && sessionID()}>
           <Tabs class="h-auto">
             <Tabs.List>
               <Show when={isInvestigation()}>
@@ -1793,16 +1863,16 @@ export default function Page() {
           classList={{
             "@container relative shrink-0 flex flex-col min-h-0 h-full bg-background-stronger": true,
             "flex-1 pt-6 md:pt-3": true,
-            "md:flex-none": layout.fileTree.opened(),
+            "md:flex-none": sidePanelOpen(),
           }}
           style={{
-            width: isDesktop() && layout.fileTree.opened() ? `${layout.session.width()}px` : "100%",
+            width: isDesktop() && sidePanelOpen() ? `${layout.session.width()}px` : "100%",
             "--prompt-height": store.promptHeight ? `${store.promptHeight}px` : undefined,
           }}
         >
           <div class="flex-1 min-h-0 overflow-hidden">
             <Switch>
-              <Match when={params.id}>
+              <Match when={sessionID()}>
                 <Show when={activeMessage()}>
                   <Show
                     when={!mobileChanges()}
@@ -1810,7 +1880,7 @@ export default function Page() {
                       <div class="relative h-full overflow-hidden">
                         <Switch>
                           <Match when={store.mobileTab === "investigation"}>
-                            <InvestigationFlow />
+                            <InvestigationFlow directory={investigationDirectory()} workspaceDirectory={info()?.directory} />
                           </Match>
                           <Match when={hasReview()}>
                             <Show
@@ -1846,7 +1916,7 @@ export default function Page() {
                           </Match>
                           <Match when={true}>
                             <div class="h-full px-4 pb-30 flex flex-col items-center justify-center text-center gap-6">
-                              <Mark class="w-14 opacity-10" />
+                              <Icon name="bullet-list" size="large" class="text-icon-weak opacity-20" />
                               <div class="text-14-regular text-text-weak max-w-56">
                                 {language.t("session.review.empty")}
                               </div>
@@ -2027,7 +2097,7 @@ export default function Page() {
                                 class="text-12-medium opacity-50"
                                 disabled={historyLoading()}
                                 onClick={() => {
-                                  const id = params.id
+                                  const id = sessionID()
                                   if (!id) return
                                   setStore("turnStart", 0)
                                   sync.session.history.loadMore(id)
@@ -2043,7 +2113,7 @@ export default function Page() {
                             {(message) => {
                               if (import.meta.env.DEV) {
                                 onMount(() => {
-                                  const id = params.id
+                                  const id = sessionID()
                                   if (!id) return
                                   navMark({ dir: params.dir, to: id, name: "session:first-turn-mounted" })
                                 })
@@ -2059,7 +2129,7 @@ export default function Page() {
                                   }}
                                 >
                                   <SessionTurn
-                                    sessionID={params.id!}
+                                    sessionID={sessionID()!}
                                     messageID={message.id}
                                     lastUserMessageID={lastUserMessage()?.id}
                                     stepsExpanded={store.expanded[message.id] ?? false}
@@ -2185,7 +2255,7 @@ export default function Page() {
             </div>
           </div>
 
-          <Show when={isDesktop() && layout.fileTree.opened()}>
+          <Show when={isDesktop() && sidePanelOpen()}>
             <ResizeHandle
               direction="horizontal"
               size={layout.session.width()}
@@ -2197,20 +2267,25 @@ export default function Page() {
         </div>
 
         {/* Desktop side panel - hidden on mobile */}
-        <Show when={isDesktop() && layout.fileTree.opened()}>
+        <Show when={isDesktop() && sidePanelOpen()}>
           <aside
             id="review-panel"
             aria-label={language.t("session.panel.reviewAndFiles")}
             class="relative flex-1 min-w-0 h-full border-l border-border-weak-base flex"
           >
             <div class="flex-1 min-w-0 h-full">
-              <Show when={fileTreeTab() === "investigation"}>
-                <InvestigationFlow />
-              </Show>
-
-              <Show
-                when={fileTreeTab() === "changes"}
-                fallback={
+              <Switch>
+                <Match when={isInvestigation() && fileTreeTab() === "investigation"}>
+                  <InvestigationFlow
+                    directory={investigationDirectory()}
+                    workspaceDirectory={info()?.directory}
+                    fileTreeOpen={layout.fileTree.opened()}
+                    onHideFileTree={() => layout.fileTree.close()}
+                    onShowFileTree={reveal}
+                  />
+                </Match>
+                <Match when={fileTreeTab() === "changes"}>{reviewPanel()}</Match>
+                <Match when={true}>
                   <DragDropProvider
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
@@ -2329,7 +2404,7 @@ export default function Page() {
                         <Show when={activeTab() === "empty"}>
                           <div class="relative pt-2 flex-1 min-h-0 overflow-hidden">
                             <div class="h-full px-6 pb-42 flex flex-col items-center justify-center text-center gap-6">
-                              <Mark class="w-14 opacity-10" />
+                              <Icon name="folder" size="large" class="text-icon-weak opacity-20" />
                               <div class="text-14-regular text-text-weak max-w-56">
                                 {language.t("session.files.selectToOpen")}
                               </div>
@@ -2858,10 +2933,8 @@ export default function Page() {
                       </Show>
                     </DragOverlay>
                   </DragDropProvider>
-                }
-              >
-                {reviewPanel()}
-              </Show>
+                </Match>
+              </Switch>
             </div>
 
             <Show when={layout.fileTree.opened()}>

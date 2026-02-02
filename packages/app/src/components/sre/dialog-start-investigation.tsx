@@ -1,14 +1,12 @@
 import { createSignal, createMemo, Show, For } from "solid-js"
 import { Portal } from "solid-js/web"
 import { createStore } from "solid-js/store"
-import type { Severity } from "../../pages/sre/types"
 
 interface FormData {
   description: string
   affectedService: string
   namespace: string
   cluster: string
-  severity: Severity | ""
 }
 
 interface FormErrors {
@@ -30,21 +28,12 @@ const CLUSTERS = [
   { value: "dev", label: "dev" },
 ]
 
-const SEVERITIES = [
-  { value: "", label: "Select severity..." },
-  { value: "P1", label: "P1 - Critical" },
-  { value: "P2", label: "P2 - High" },
-  { value: "P3", label: "P3 - Medium" },
-  { value: "P4", label: "P4 - Low" },
-]
-
 export function DialogStartInvestigation(props: Props) {
   const [form, setForm] = createStore<FormData>({
     description: "",
     affectedService: "",
     namespace: "",
     cluster: "",
-    severity: "",
   })
 
   const [errors, setErrors] = createStore<FormErrors>({})
@@ -90,7 +79,6 @@ export function DialogStartInvestigation(props: Props) {
       affectedService: "",
       namespace: "",
       cluster: "",
-      severity: "",
     })
     setErrors({})
     setSubmitError(null)
@@ -106,13 +94,13 @@ export function DialogStartInvestigation(props: Props) {
   return (
     <Show when={props.isOpen}>
       <Portal>
-        <div class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="sre-theme fixed inset-0 z-50 flex items-center justify-center">
           <div
-            class="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+            class="sre-dialog-backdrop absolute inset-0 transition-opacity"
             onClick={handleClose}
           />
 
-          <div class="relative bg-[var(--aui-color-surface)] rounded-lg shadow-xl max-w-lg w-full mx-4 overflow-hidden border border-[var(--aui-color-border)] animate-in fade-in zoom-in-95 duration-200">
+          <div class="sre-dialog-panel relative bg-[var(--aui-color-surface)] rounded-lg shadow-xl max-w-lg w-full mx-4 overflow-hidden border border-[var(--aui-color-border)] animate-in fade-in zoom-in-95 duration-200">
             <div class="px-6 py-4 border-b border-[var(--aui-color-border)] flex items-center justify-between">
               <h3 class="text-lg font-semibold text-[var(--aui-color-n-1)]">
                 Start Investigation
@@ -204,31 +192,6 @@ export function DialogStartInvestigation(props: Props) {
                       class="w-full px-3 py-2 h-9 rounded border border-[var(--aui-color-border)] bg-[var(--aui-color-surface)] text-[var(--aui-color-n-1)] text-sm appearance-none cursor-pointer transition-colors focus:outline-none focus:border-[var(--aui-color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <For each={CLUSTERS}>
-                        {(option) => (
-                          <option value={option.value}>{option.label}</option>
-                        )}
-                      </For>
-                    </select>
-                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--aui-color-n-4)]">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <label class="block text-sm font-medium text-[var(--aui-color-n-2)] mb-1.5">
-                    Severity
-                  </label>
-                  <div class="relative">
-                    <select
-                      value={form.severity}
-                      onChange={(e) => setForm("severity", e.currentTarget.value as Severity | "")}
-                      disabled={submitting()}
-                      class="w-full px-3 py-2 h-9 rounded border border-[var(--aui-color-border)] bg-[var(--aui-color-surface)] text-[var(--aui-color-n-1)] text-sm appearance-none cursor-pointer transition-colors focus:outline-none focus:border-[var(--aui-color-primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <For each={SEVERITIES}>
                         {(option) => (
                           <option value={option.value}>{option.label}</option>
                         )}
