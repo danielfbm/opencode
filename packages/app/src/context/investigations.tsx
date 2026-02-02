@@ -6,8 +6,12 @@ import {
   type JSX,
 } from "solid-js"
 import { createStore } from "solid-js/store"
+import { createOpencodeClient } from "@opencode-ai/sdk/v2/client"
 import type { Investigation, InvestigationFilters, Hypothesis, Observation } from "../pages/sre/types"
 import { mockInvestigations, mockHypotheses, mockObservations, mockReports } from "../pages/sre/mock-data"
+import { useSreWorkspace } from "./sre-workspace"
+import { useGlobalSDK } from "./global-sdk"
+import { usePlatform } from "./platform"
 
 interface CreateInvestigationInput {
   description: string
@@ -36,6 +40,10 @@ interface InvestigationsContextType {
 const InvestigationsContext = createContext<InvestigationsContextType>()
 
 export function InvestigationsProvider(props: { children: JSX.Element }) {
+  const workspace = useSreWorkspace()
+  const globalSDK = useGlobalSDK()
+  const platform = usePlatform()
+
   const [filters, setFiltersStore] = createStore<InvestigationFilters>({
     search: "",
     status: "all",
@@ -61,11 +69,22 @@ export function InvestigationsProvider(props: { children: JSX.Element }) {
   }
 
   const createInvestigation = async (input: CreateInvestigationInput): Promise<Investigation> => {
-    await new Promise((resolve) => setTimeout(resolve, 800))
-    
+    const directory = workspace.directory()
+    if (!directory) throw new Error("No workspace selected")
+
+    const client = createOpencodeClient({
+      baseUrl: globalSDK.url,
+      fetch: platform.fetch,
+      directory,
+      throwOnError: true,
+    })
+
+    const session = await client.session.create({ title: input.description })
+
     const id = `inv-${Date.now()}`
     const newInvestigation: Investigation = {
       id,
+      sessionId: session.data?.id,
       name: input.description.slice(0, 50) + (input.description.length > 50 ? "..." : ""),
       description: input.description,
       status: "in_progress",
@@ -74,7 +93,7 @@ export function InvestigationsProvider(props: { children: JSX.Element }) {
       namespace: input.namespace,
       cluster: input.cluster,
       startedAt: Date.now(),
-      directory: `/sre-investigations/${id}`,
+      directory,
       currentPhase: "data_collection",
       hypothesesCount: 0,
       observationsCount: 0,

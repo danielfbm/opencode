@@ -11,12 +11,14 @@ import { ModelsProvider } from "../../context/models"
 import { CommandProvider } from "../../context/command"
 import { HighlightsProvider } from "../../context/highlights"
 import { InvestigationsProvider } from "../../context/investigations"
+import { SreWorkspaceProvider } from "../../context/sre-workspace"
 import { usePlatform } from "../../context/platform"
 import { SreErrorBoundary } from "../../components/sre/error-boundary"
 import SreLayout from "./layout"
 
 const InvestigationsList = lazy(() => import("./investigations-list"))
 const InvestigationDetails = lazy(() => import("./investigation-details"))
+const WorkspaceSelect = lazy(() => import("./workspace-select"))
 const NotFound = lazy(() => import("./not-found"))
 
 const Loading = () => (
@@ -68,13 +70,15 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                       <NotificationProvider>
                         <ModelsProvider>
                           <CommandProvider>
-                            <HighlightsProvider>
-                              <InvestigationsProvider>
-                                <SreErrorBoundary>
-                                  <SreLayout>{props.children}</SreLayout>
-                                </SreErrorBoundary>
-                              </InvestigationsProvider>
-                            </HighlightsProvider>
+             <HighlightsProvider>
+                               <SreWorkspaceProvider>
+                                 <InvestigationsProvider>
+                                   <SreErrorBoundary>
+                                     <SreLayout>{props.children}</SreLayout>
+                                   </SreErrorBoundary>
+                                 </InvestigationsProvider>
+                               </SreWorkspaceProvider>
+                             </HighlightsProvider>
                           </CommandProvider>
                         </ModelsProvider>
                       </NotificationProvider>
@@ -83,9 +87,17 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                 </SettingsProvider>
               )}
             >
-              <Route path="/" component={() => <Navigate href="/investigations" />} />
-              <Route
-                path="/investigations"
+               <Route path="/" component={() => <Navigate href="/workspace" />} />
+               <Route
+                 path="/workspace"
+                 component={() => (
+                   <Suspense fallback={<Loading />}>
+                     <WorkspaceSelect />
+                   </Suspense>
+                 )}
+               />
+               <Route
+                path="/:dir/investigations"
                 component={() => (
                   <Suspense fallback={<Loading />}>
                     <InvestigationsList />
@@ -93,7 +105,7 @@ export const SreApp = (props: { defaultUrl?: string }) => {
                 )}
               />
               <Route
-                path="/investigations/:id"
+                path="/:dir/investigations/:id"
                 component={() => (
                   <Suspense fallback={<Loading />}>
                     <InvestigationDetails />

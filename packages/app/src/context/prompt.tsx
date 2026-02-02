@@ -185,7 +185,7 @@ function createPromptSession(dir: string, id: string | undefined) {
 export const { use: usePrompt, provider: PromptProvider } = createSimpleContext({
   name: "Prompt",
   gate: false,
-  init: () => {
+  init: (props: { directory?: string; sessionId?: string }) => {
     const params = useParams()
     const cache = new Map<string, PromptCacheEntry>()
 
@@ -227,7 +227,9 @@ export const { use: usePrompt, provider: PromptProvider } = createSimpleContext(
       return entry.value
     }
 
-    const session = createMemo(() => load(params.dir!, params.id))
+    const dir = () => props.directory ?? params.dir!
+    const id = () => props.sessionId ?? params.id
+    const session = createMemo(() => load(dir(), id()))
 
     return {
       ready: () => session().ready(),

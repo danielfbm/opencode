@@ -1,6 +1,7 @@
 import { createSignal, createMemo, Show, For } from "solid-js"
-import { useNavigate } from "@solidjs/router"
+import { useNavigate, Navigate, useParams } from "@solidjs/router"
 import { useInvestigations } from "../../context/investigations"
+import { useSreWorkspace } from "../../context/sre-workspace"
 import { InvestigationCard } from "../../components/sre/investigation-card"
 import { InvestigationTable } from "../../components/sre/investigation-table"
 import { Pagination } from "../../components/sre/pagination"
@@ -10,6 +11,14 @@ import { CardSkeletonGrid, TableSkeleton } from "../../components/sre/skeleton"
 import type { InvestigationStatus, Severity } from "./types"
 
 export default function InvestigationsList() {
+  const params = useParams()
+  const workspace = useSreWorkspace()
+  
+  // Redirect to workspace selection if none selected
+  if (!workspace.directory()) {
+    return <Navigate href="/workspace" />
+  }
+
   const navigate = useNavigate()
   const { 
     filteredInvestigations, 
@@ -262,7 +271,7 @@ export default function InvestigationsList() {
             cluster: data.cluster || undefined,
             severity: (data.severity as Severity) || undefined,
           })
-          navigate(`/investigations/${investigation.id}`)
+          navigate(`/${params.dir}/investigations/${investigation.id}`)
         }}
       />
     </div>

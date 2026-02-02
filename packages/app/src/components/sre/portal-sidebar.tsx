@@ -1,13 +1,24 @@
 import { useLocation, A } from "@solidjs/router"
+import { createMemo } from "solid-js"
+import { useSreWorkspace } from "@/context/sre-workspace"
+import { base64Encode } from "@opencode-ai/util/encode"
 
 export default function PortalSidebar() {
   const location = useLocation()
-  const isActive = (path: string) => location.pathname.startsWith(path)
+  const workspace = useSreWorkspace()
+  
+  const investigationsPath = createMemo(() => {
+    const dir = workspace.directory()
+    if (!dir) return "/workspace"
+    return `/${base64Encode(dir)}/investigations`
+  })
+  
+  const isActive = (pattern: string) => location.pathname.includes(pattern)
 
   return (
     <nav class="sre-sidebar">
       <A
-        href="/investigations"
+        href={investigationsPath()}
         class={`sre-nav-item ${isActive("/investigations") ? "active" : ""}`}
       >
         <svg
